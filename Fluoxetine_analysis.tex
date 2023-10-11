@@ -208,7 +208,7 @@
 
 \begin{document}
 \maketitle
-\ifdefined\Shaded\renewenvironment{Shaded}{\begin{tcolorbox}[boxrule=0pt, enhanced, interior hidden, breakable, borderline west={3pt}{0pt}{shadecolor}, frame hidden, sharp corners]}{\end{tcolorbox}}\fi
+\ifdefined\Shaded\renewenvironment{Shaded}{\begin{tcolorbox}[enhanced, boxrule=0pt, borderline west={3pt}{0pt}{shadecolor}, interior hidden, frame hidden, sharp corners, breakable]}{\end{tcolorbox}}\fi
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -220,73 +220,118 @@
 \end{Shaded}
 
 \begin{verbatim}
-               _                           
-platform       aarch64-apple-darwin20      
-arch           aarch64                     
-os             darwin20                    
-system         aarch64, darwin20           
-status                                     
-major          4                           
-minor          2.2                         
-year           2022                        
-month          10                          
-day            31                          
-svn rev        83211                       
-language       R                           
-version.string R version 4.2.2 (2022-10-31)
-nickname       Innocent and Trusting       
+Loading required package: StanHeaders
 \end{verbatim}
 
 \begin{verbatim}
-R version 4.2.2 (2022-10-31)
-Platform: aarch64-apple-darwin20 (64-bit)
-Running under: macOS Ventura 13.5.2
+
+rstan version 2.26.22 (Stan version 2.26.1)
+\end{verbatim}
+
+\begin{verbatim}
+For execution on a local, multicore CPU with excess RAM we recommend calling
+options(mc.cores = parallel::detectCores()).
+To avoid recompilation of unchanged Stan programs, we recommend calling
+rstan_options(auto_write = TRUE)
+For within-chain threading using `reduce_sum()` or `map_rect()` Stan functions,
+change `threads_per_chain` option:
+rstan_options(threads_per_chain = 1)
+\end{verbatim}
+
+\begin{verbatim}
+Do not specify '-march=native' in 'LOCAL_CPPFLAGS' or a Makevars file
+\end{verbatim}
+
+\begin{verbatim}
+-- Attaching core tidyverse packages ------------------------ tidyverse 2.0.0 --
+v dplyr     1.1.2     v readr     2.1.4
+v forcats   1.0.0     v stringr   1.5.0
+v ggplot2   3.4.3     v tibble    3.2.1
+v lubridate 1.9.2     v tidyr     1.3.0
+v purrr     1.0.1     
+-- Conflicts ------------------------------------------ tidyverse_conflicts() --
+x tidyr::extract() masks rstan::extract()
+x dplyr::filter()  masks stats::filter()
+x dplyr::lag()     masks stats::lag()
+i Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+
+Attaching package: 'kableExtra'
+
+
+The following object is masked from 'package:dplyr':
+
+    group_rows
+\end{verbatim}
+
+\begin{verbatim}
+               _                                
+platform       x86_64-w64-mingw32               
+arch           x86_64                           
+os             mingw32                          
+crt            ucrt                             
+system         x86_64, mingw32                  
+status                                          
+major          4                                
+minor          3.1                              
+year           2023                             
+month          06                               
+day            16                               
+svn rev        84548                            
+language       R                                
+version.string R version 4.3.1 (2023-06-16 ucrt)
+nickname       Beagle Scouts                    
+\end{verbatim}
+
+\begin{verbatim}
+R version 4.3.1 (2023-06-16 ucrt)
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+Running under: Windows 11 x64 (build 22621)
 
 Matrix products: default
-BLAS:   /Library/Frameworks/R.framework/Versions/4.2-arm64/Resources/lib/libRblas.0.dylib
-LAPACK: /Library/Frameworks/R.framework/Versions/4.2-arm64/Resources/lib/libRlapack.dylib
+
 
 locale:
-[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+[1] LC_COLLATE=English_United States.utf8 
+[2] LC_CTYPE=English_United States.utf8   
+[3] LC_MONETARY=English_United States.utf8
+[4] LC_NUMERIC=C                          
+[5] LC_TIME=English_United States.utf8    
+
+time zone: Asia/Bangkok
+tzcode source: internal
 
 attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 
 other attached packages:
- [1] RColorBrewer_1.1-3   finalfit_1.0.6       kableExtra_1.3.4    
- [4] forcats_0.5.2        stringr_1.5.0        dplyr_1.1.2         
- [7] purrr_0.3.5          readr_2.1.3          tidyr_1.2.1         
-[10] tibble_3.2.1         tidyverse_1.3.2      rstan_2.21.7        
-[13] ggplot2_3.4.0        StanHeaders_2.21.0-7
+ [1] RColorBrewer_1.1-3  finalfit_1.0.6      kableExtra_1.3.4   
+ [4] lubridate_1.9.2     forcats_1.0.0       stringr_1.5.0      
+ [7] dplyr_1.1.2         purrr_1.0.1         readr_2.1.4        
+[10] tidyr_1.3.0         tibble_3.2.1        ggplot2_3.4.3      
+[13] tidyverse_2.0.0     rstan_2.26.22       StanHeaders_2.26.27
 
 loaded via a namespace (and not attached):
- [1] httr_1.4.4          splines_4.2.2       jsonlite_1.8.4     
- [4] viridisLite_0.4.1   modelr_0.1.10       RcppParallel_5.1.5 
- [7] assertthat_0.2.1    stats4_4.2.2        googlesheets4_1.0.1
-[10] cellranger_1.1.0    yaml_2.3.6          lattice_0.20-45    
-[13] pillar_1.9.0        backports_1.4.1     glue_1.6.2         
-[16] digest_0.6.31       rvest_1.0.3         colorspace_2.0-3   
-[19] Matrix_1.5-1        htmltools_0.5.4     pkgconfig_2.0.3    
-[22] broom_1.0.2         haven_2.5.1         webshot_0.5.4      
-[25] scales_1.2.1        processx_3.8.0      svglite_2.1.1      
-[28] tzdb_0.3.0          timechange_0.1.1    googledrive_2.0.0  
-[31] generics_0.1.3      ellipsis_0.3.2      withr_2.5.0        
-[34] cli_3.6.1           survival_3.4-0      magrittr_2.0.3     
-[37] crayon_1.5.2        readxl_1.4.1        evaluate_0.19      
-[40] ps_1.7.2            mice_3.15.0         fs_1.5.2           
-[43] fansi_1.0.4         xml2_1.3.3          pkgbuild_1.4.0     
-[46] tools_4.2.2         loo_2.5.1           prettyunits_1.1.1  
-[49] hms_1.1.2           gargle_1.2.1        lifecycle_1.0.3    
-[52] matrixStats_0.63.0  munsell_0.5.0       reprex_2.0.2       
-[55] callr_3.7.3         compiler_4.2.2      systemfonts_1.0.4  
-[58] rlang_1.1.0         grid_4.2.2          rstudioapi_0.14    
-[61] rmarkdown_2.19      boot_1.3-28         gtable_0.3.1       
-[64] codetools_0.2-18    inline_0.3.19       DBI_1.1.3          
-[67] R6_2.5.1            gridExtra_2.3       lubridate_1.9.0    
-[70] knitr_1.41          fastmap_1.1.0       utf8_1.2.3         
-[73] stringi_1.7.8       parallel_4.2.2      Rcpp_1.0.10        
-[76] vctrs_0.6.2         dbplyr_2.2.1        tidyselect_1.2.0   
-[79] xfun_0.35          
+ [1] tidyselect_1.2.0   viridisLite_0.4.2  loo_2.6.0          fastmap_1.1.1     
+ [5] rpart_4.1.19       digest_0.6.33      timechange_0.2.0   lifecycle_1.0.3   
+ [9] survival_3.5-5     processx_3.8.2     magrittr_2.0.3     compiler_4.3.1    
+[13] rlang_1.1.1        tools_4.3.1        utf8_1.2.3         yaml_2.3.7        
+[17] knitr_1.43         prettyunits_1.1.1  pkgbuild_1.4.2     curl_5.0.1        
+[21] xml2_1.3.5         withr_2.5.0        nnet_7.3-19        grid_4.3.1        
+[25] stats4_4.3.1       fansi_1.0.4        jomo_2.7-6         colorspace_2.1-0  
+[29] mice_3.16.0        inline_0.3.19      scales_1.2.1       iterators_1.0.14  
+[33] MASS_7.3-60        cli_3.6.1          rmarkdown_2.23     crayon_1.5.2      
+[37] generics_0.1.3     RcppParallel_5.1.7 rstudioapi_0.15.0  httr_1.4.6        
+[41] tzdb_0.4.0         minqa_1.2.5        splines_4.3.1      rvest_1.0.3       
+[45] parallel_4.3.1     matrixStats_1.0.0  vctrs_0.6.3        V8_4.3.3          
+[49] boot_1.3-28.1      glmnet_4.1-7       webshot_0.5.5      Matrix_1.6-0      
+[53] jsonlite_1.8.7     callr_3.7.3        hms_1.1.3          mitml_0.4-5       
+[57] systemfonts_1.0.4  foreach_1.5.2      glue_1.6.2         pan_1.8           
+[61] nloptr_2.0.3       codetools_0.2-19   ps_1.7.5           stringi_1.7.12    
+[65] gtable_0.3.3       shape_1.4.6        lme4_1.1-34        munsell_0.5.0     
+[69] pillar_1.9.0       htmltools_0.5.6    R6_2.5.1           evaluate_0.21     
+[73] lattice_0.21-8     backports_1.4.1    broom_1.0.5        Rcpp_1.0.11       
+[77] nlme_3.1-162       svglite_2.1.1      gridExtra_2.3      xfun_0.39         
+[81] pkgconfig_2.0.3   
 \end{verbatim}
 
 \begin{verbatim}
@@ -330,6 +375,16 @@ Intervention    FALSE TRUE
 
 \hypertarget{baseline-characteristics}{%
 \subsection{Baseline characteristics}\label{baseline-characteristics}}
+
+\begin{verbatim}
+Warning: There was 1 warning in `mutate()`.
+i In argument: `Site = (function (f, na_level = "(Missing)") ...`.
+Caused by warning:
+! `fct_explicit_na()` was deprecated in forcats 1.0.0.
+i Please use `fct_na_value_to_level()` instead.
+i The deprecated feature was likely used in the dplyr package.
+  Please report the issue at <https://github.com/tidyverse/dplyr/issues>.
+\end{verbatim}
 
 \begin{table}
 
@@ -376,12 +431,12 @@ Fever\_Baseline & 0 & 115 (76.7) & 85 (73.3) & 200 (75.2)\\
 \subsection{Fit models}\label{fit-models}}
 
 \begin{verbatim}
-Analysis dataset contains 266 patients and 4774 datapoints (3985 above LLOD, 83%)
+Analysis dataset contains 266 patients and 3718 datapoints (3338 above LLOD, 90%)
 \end{verbatim}
 
 \begin{verbatim}
-There are a total of 266 patients in the database with a total of 4774 PCRs analysable
-16.53% of samples are below LOD
+There are a total of 266 patients in the database with a total of 3718 PCRs analysable
+10.22% of samples are below LOD
 check stan data formatting:
 \end{verbatim}
 
@@ -413,20 +468,20 @@ Warning in brewer.pal(n = nrow(model_settings), name = "Set1"): minimal value fo
 
 \begin{verbatim}
  2.5%   10%   50%   90% 97.5% 
-   -2     3    14    26    32 
+    4    10    23    37    46 
 \end{verbatim}
 
 \begin{verbatim}
-Probability that the effect is less than 1.2% is 0.758
+Probability that the effect is less than 1.2% is 0.382
 \end{verbatim}
 
 \begin{verbatim}
  2.5%   10%   50%   90% 97.5% 
-   -2     2    11    22    28 
+    1     6    17    31    40 
 \end{verbatim}
 
 \begin{verbatim}
-Probability that the effect is less than 1.2% is 0.867
+Probability that the effect is less than 1.2% is 0.592
 \end{verbatim}
 
 \begin{figure}[H]
@@ -438,8 +493,8 @@ Probability that the effect is less than 1.2% is 0.867
 \end{figure}
 
 \begin{verbatim}
-In No study drug the median clearance half life was 15 (range 3 to 47)
-In Fluoxetine the median clearance half life was 13.7 (range 3.7 to 38.6)
+In No study drug the median clearance half life was 16.2 (range 2.8 to 44.7)
+In Fluoxetine the median clearance half life was 14.2 (range 3.5 to 39.2)
 \end{verbatim}
 
 \begin{verbatim}
