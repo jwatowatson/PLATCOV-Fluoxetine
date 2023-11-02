@@ -1,6 +1,8 @@
 ## Load randomisation data to get ITT database
+source("user_settings.R")
+
 library(dplyr)
-ff_names = list.files(path = "~/Dropbox/PLATCOV", pattern = 'data',full.names = T)
+ff_names = list.files(path = prefix_drop_rand, pattern = 'data',full.names = T)
 flx_sites = c('TH1', 'BR3', 'PK01', 'LA08')
 
 data_list = list()

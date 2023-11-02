@@ -24,7 +24,7 @@ for(i in 1:nrow(model_settings)){
   trt_intervention = unique(platcov_dat$Trt)
   trts = trt_intervention[trt_intervention!=ref_arm] # get interventions
   effect_ests[[i]] = 
-    exp(summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%','10%','50%','90%','97.5%'),drop=F])
+    exp(summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%', '10%','50%','90%','97.5%'),drop=F])
   rownames(effect_ests[[i]])=trts
 }
 ######################################################################################################
@@ -41,6 +41,9 @@ effect_fluoxetine$Dmax <- as.factor(effect_fluoxetine$Dmax)
 levels(effect_fluoxetine$Dmax) <- c("5 days", "7 days")
 
 colnames(effect_fluoxetine) <- c("L95", "L80", "med", "U80", "U95", "model", "Dmax")
+
+intervention <- "Fluoxetine"
+ref_arm <- "No study drug"
 
 G1 <- ggplot(effect_fluoxetine, aes(x = model, y = med, col = Dmax, shape = model)) +
   geom_point(position = position_dodge(width = 0.5), size = 3) +
@@ -182,7 +185,7 @@ effect_fluoxetine_meta$Trt <- factor(effect_fluoxetine_meta$Trt, levels = c("Ive
                                                                             "Molnupiravir", "Remdesivir", "Nirmatrelvir + Ritonavir"))
 levels(effect_fluoxetine_meta$Trt)[6] <- "Nirmatrelvir"
 
-G4 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear",], aes(x = Trt, y = med, col = Dmax)) +
+G4 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear" & effect_fluoxetine_meta$Dmax == "5 days",], aes(x = Trt, y = med, col = Dmax)) +
   geom_point(position = position_dodge(width = 0.5), size = 3) +
   geom_rect(aes(ymin = 0.6, ymax = 1.2, xmin = 0, xmax = 7), fill = "gray", alpha = 0.05, col = NA) +
   theme_bw() +
@@ -204,9 +207,38 @@ G4 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear",], 
                            "inches")) +
   ggtitle("Linear model")
 ######################################################################################################  
-png("Plots/Fluoxetine_meta_analysis.png", width = 6, height = 6, units = "in", res = 350)
+png("Plots/Fluoxetine_meta_analysis_5days.png", width = 6, height = 6, units = "in", res = 350)
 G4
 dev.off()
 ######################################################################################################
+effect_fluoxetine_meta
 
-  
+G5 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear" & effect_fluoxetine_meta$Dmax == "5 days",], 
+             aes(x = Trt, y = med, col = Trt)) +
+  geom_point(position = position_dodge(width = 0.5), size = 3) +
+  geom_rect(aes(ymin = 0.6, ymax = 1.2, xmin = 0, xmax = 7), fill = "gray", alpha = 0.05, col = NA) +
+  theme_bw() +
+  coord_flip() +
+  geom_errorbar(aes(ymin = L95, ymax = U95), width = 0, position = position_dodge(width = 0.5), linewidth = 0.75) +
+  geom_errorbar(aes(x = Trt, ymin = L80, ymax = U80),position = position_dodge(width = 0.5), width = 0, linewidth = 1.8) +
+  geom_point(position = position_dodge(width = 0.5), size = 4) +
+  geom_hline(yintercept = 1, col = "red", linetype = "dashed") +
+  scale_color_manual(values =  c("#FF2626", "#A03C78", "#ED8E7C", "#1C6DD0", "#FFC95F", "#93D9A3")) +
+  scale_shape_manual(values = c(16,17), name = "Model", guide = "none") +
+  scale_y_continuous(labels = formatter, limits = c(0.6, 2.8), expand = c(0,0),
+                     breaks = seq(0.8,2.8,0.2)) +
+  ylab("Change in rate of viral clearance (%)") +
+  xlab("") + 
+  theme(axis.title  = element_text(face = "bold"),
+        plot.title = element_text(face = "bold"),
+        legend.position = "none",
+        plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), 
+                           "inches")) +
+  ggtitle("Linear model")
+
+G5
+######################################################################################################  
+png("Plots/Fluoxetine_meta_analysis_by_drug.png", width = 5, height = 5, units = "in", res = 350)
+G5
+dev.off()
+######################################################################################################  
