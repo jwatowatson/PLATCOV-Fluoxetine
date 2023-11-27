@@ -165,11 +165,11 @@ stan_inputs =
 all_mods = list.files('Stan_models',full.names = TRUE,pattern = '*stan')
 
 model_settings = expand.grid(mod = all_mods,
-                             prior = 1,
-                             cov_matrices = 1)
+                             prior = 1:2,
+                             cov_matrices = 1:2)
 
-model_settings$Niter = 2000
-model_settings$Nwarmup = 1000
+model_settings$Niter = 4000
+model_settings$Nwarmup = 2000
 model_settings$Nthin = 4
 model_settings$Nchain = 4
 
