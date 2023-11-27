@@ -26,7 +26,7 @@ sessionInfo()
 
 rstan_options(auto_write = TRUE)
 ## parameters for the analysis
-Dmax = 5.5
+Dmax = 8
 study_threshold = 1.2
 RUN_MODELS = F
 
@@ -130,9 +130,22 @@ tab.ff
 source('priors.R')
 
 # Analysis data
-platcov_dat_analysis = 
+platcov_dat_analysis_list = list()
+platcov_dat_analysis_list[[1]] = 
   platcov_dat %>% ungroup() %>%
-  filter(Time <= Dmax, mITT) %>%
+  filter(Time <= 8, mITT) %>%
+  arrange(log10_viral_load==log10_cens_vl) %>%
+  mutate(Variant = as.factor(Variant),
+         Site = as.factor(Site),
+         RnaseP_scaled = scale(40 - CT_RNaseP,scale = F),
+         Mean_age = mean(Age[!duplicated(ID)]),
+         SD_age = sd(Age[!duplicated(ID)]),
+         Age_scaled = (Age-Mean_age)/SD_age,
+         Symptom_onset = ifelse(is.na(Symptom_onset),2,Symptom_onset)) 
+
+platcov_dat_analysis_list[[2]] = 
+  platcov_dat %>% ungroup() %>%
+  filter(Time <= 5.5, mITT) %>%
   arrange(log10_viral_load==log10_cens_vl) %>%
   mutate(Variant = as.factor(Variant),
          Site = as.factor(Site),
@@ -144,7 +157,7 @@ platcov_dat_analysis =
 
 
 writeLines(sprintf('Analysis dataset contains %s patients and %s datapoints (%s above LLOD, %s%%)',
-                   length(unique(platcov_dat_analysis$ID)),
+                   length(unique(platcov_dat_analysis_list[[1]]$ID)),
                    nrow(platcov_dat_analysis),
                    sum(platcov_dat_analysis$CT_NS<40),
                    round(100*mean(platcov_dat_analysis$CT_NS<40))))
@@ -166,7 +179,8 @@ all_mods = list.files('Stan_models',full.names = TRUE,pattern = '*stan')
 
 model_settings = expand.grid(mod = all_mods,
                              prior = 1:2,
-                             cov_matrices = 1:2)
+                             cov_matrices = 1:2, 
+                             dataset = 1:2)
 
 model_settings$Niter = 4000
 model_settings$Nwarmup = 2000
@@ -182,7 +196,7 @@ writeLines(sprintf('We are running all models with %s chains and %s samples for 
 
 model_setup_f_name = paste0('Rout/model_run_setup_',intervention,'.RData')
 save(model_settings, 
-     platcov_dat_analysis,
+     platcov_dat_analysis_list,
      stan_inputs, 
      all_priors,
      file = model_setup_f_name)
