@@ -7,6 +7,7 @@ library(tidyr)
 library(ggpubr)
 library(rstan)
 library(dplyr)
+library(scales)
 ######################################################################################################
 my_probs = c(0.025, 0.1, .5, .9, .975)
 source('functions.R')
@@ -27,6 +28,11 @@ for(i in 1:nrow(model_settings)){
     exp(summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%', '10%','50%','90%','97.5%'),drop=F])
   rownames(effect_ests[[i]])=trts
 }
+
+A <- (rstan::extract(out, par = 'trt_effect'))
+
+sum(exp(A$trt_effect) < 1.2)/length(A$trt_effect)
+
 ######################################################################################################
 # 1. Fluoxetine analysis: effects
 flag_fluoxetine <- which(model_settings$intervention == "Fluoxetine")
@@ -46,72 +52,97 @@ intervention <- "Fluoxetine"
 ref_arm <- "No study drug"
 
 G1 <- ggplot(effect_fluoxetine, aes(x = model, y = med, col = Dmax, shape = model)) +
-  geom_point(position = position_dodge(width = 0.5), size = 3) +
-  geom_errorbar(aes(x = model, ymin = L95, ymax = U95),position = position_dodge(width = 0.5), width = 0) +
-  geom_errorbar(aes(x = model, ymin = L80, ymax = U80),position = position_dodge(width = 0.5), width = 0, linewidth = 1) +
-  geom_rect(aes(ymin = 0.9, ymax = 1.2, xmin = 0, xmax = 3), fill = "gray", alpha = 0.05, col = NA) +
+  geom_point(position = position_dodge(width = 0.5), size = 4) +
+  geom_errorbar(aes(x = model, ymin = L95, ymax = U95),position = position_dodge(width = 0.5), width = 0, linewidth = 0.65) +
+  geom_errorbar(aes(x = model, ymin = L80, ymax = U80),position = position_dodge(width = 0.5), width = 0, linewidth = 1.5) +
+  geom_rect(aes(ymin = 0.9, ymax = 1.2, xmin = 0, xmax = 3), fill = "#7D7C7C", alpha = 0.05, col = NA) +
   coord_flip() +
   theme_bw() +
   geom_hline(yintercept = 1, col = "red", linetype = "dashed") +
-  scale_color_manual(values = c("#BB2525", "#191D88"), name = "Follow-up duration") +
+  scale_color_manual(values = c("#004225", "#FFB000"), name = "Follow-up duration") +
   scale_shape_manual(values = c(16,17), name = "Model", guide = "none") +
   scale_y_continuous(labels = formatter, limits = c(0.9, 1.45), expand = c(0,0)) +
-  ylab("Change in rate of viral clearance (%)") +
+  ylab("Change in viral clearance rate (%)") +
   xlab("") +
-  ggtitle( paste0("Estimated treatment effects:\n", intervention, " vs ", ref_arm))  + 
+  ggtitle("Estimated treatment effects")  + 
   theme(axis.title  = element_text(face = "bold"),
         plot.title = element_text(face = "bold"),
-        legend.position = "bottom")
+        legend.position = "bottom",
+        axis.text = element_text(size = 10))
 G1
+
+formatter(effect_fluoxetine)
+
 ######################################################################################################
 # 2. Fluoxitine analysis: Plot data
 dataplot <- data_list[[1]]
-dataplot <- dataplot[dataplot$Timepoint_ID %in% 0:7,]
+#dataplot <- dataplot[dataplot$Timepoint_ID %in% 0:7,]
+dataplot$Time
 
-dataplot$Timepoint_ID <- as.factor(dataplot$Timepoint_ID)
-levels(dataplot$Timepoint_ID) <- c("Day 0", "Day 1", "Day 2", "Day 3", 
-                                   "Day 4", "Day 5", "Day 6", "Day 7")   
+Dmax <- 7
+dataplot = 
+  dataplot %>% ungroup() %>%
+  filter(Timepoint_ID %in% c(0:Dmax, 14), mITT) %>%
+  arrange(log10_viral_load==log10_cens_vl) %>%
+  mutate(Variant = as.factor(Variant),
+         Site = as.factor(Site),
+         RnaseP_scaled = scale(40 - CT_RNaseP,scale = F),
+         Mean_age = mean(Age[!duplicated(ID)]),
+         SD_age = sd(Age[!duplicated(ID)]),
+         Age_scaled = (Age-Mean_age)/SD_age,
+         Symptom_onset = ifelse(is.na(Symptom_onset),2,Symptom_onset)) 
 
-dataplot2 <- aggregate(log10_viral_load~ID+Timepoint_ID+Trt+Site+BMI+Plate+Age+Sex+Symptom_onset, 
+dataplot$Timepoint_ID_num <- dataplot$Timepoint_ID
+
+#dataplot$Timepoint_ID <- as.factor(dataplot$Timepoint_ID)
+#levels(dataplot$Timepoint_ID) <- c("Day 0", "Day 1", "Day 2", "Day 3", 
+#                                   "Day 4", "Day 5", "Day 6", "Day 7")   
+
+dataplot2 <- aggregate(log10_viral_load~ID+Timepoint_ID+Timepoint_ID_num+Trt+Site+BMI+Plate+Age+Sex+Symptom_onset, 
                        data = dataplot, FUN = median)
 
-dataplot3<- aggregate(log10_viral_load~Timepoint_ID+Trt, data = dataplot, FUN = quantile, c(0.25, 0.5, 0.75))
-dataplot3[,3:5] <- as.data.frame(as.matrix(dataplot3[,3]))
-colnames(dataplot3)[3:5] <- c("Q1", "Q2", "Q3")
+dataplot3<- aggregate(log10_viral_load~Timepoint_ID+Timepoint_ID_num+Trt, data = dataplot, FUN = quantile, c(0.25, 0.5, 0.75))
+dataplot3[,4:6] <- as.data.frame(as.matrix(dataplot3[,4]))
+colnames(dataplot3)[4:6] <- c("Q1", "Q2", "Q3")
 
 intervention = "Fluoxetine"
 ref_arm = "No study drug"
 
+
 G2 <- ggplot() +
-  geom_jitter(data = dataplot, aes(x = Timepoint_ID, y = log10_viral_load, col = Trt), 
-              alpha = 0.2, size = 1.75, shape = 21,
-              width = 0.2) +
+  geom_jitter(data = dataplot, aes(x = Timepoint_ID_num, y = log10_viral_load, col = Trt), 
+              alpha = 0.2, size = 1.5, shape = 21,
+              width = 0.15) +
   # geom_line(data = subset(dataplot2, as.numeric(Timepoint_ID) <= 8), aes(x =  Timepoint_ID, y = log10_viral_load, group = ID, col = Trt), 
   #           alpha = 0.5, linewidth = 0.5, linetype = 1) +
-  scale_fill_manual(values = c("#186F65", "#E55604"), name = "") +
+  scale_fill_manual(values = c("#005AB5", "#DC3220"), name = "") +
  # ggnewscale::new_scale_color() +
-  geom_line(data = subset(dataplot3, as.numeric(Timepoint_ID) <= 8), aes(x =  Timepoint_ID, y = Q2, group = Trt, col = Trt), linewidth = 1, linetype = 1) +
-  geom_point(data = dataplot3, aes(x = Timepoint_ID, y = Q2, fill = Trt), size = 3, shape = 22) +
-  scale_color_manual(values = c("#186F65", "#E55604"), name = "") +
+  geom_line(data = subset(dataplot3, Timepoint_ID_num <= 7), aes(x =  Timepoint_ID_num, y = Q2, group = Trt, col = Trt), linewidth = 1, linetype = 1) +
+  geom_line(data = subset(dataplot3,  Timepoint_ID_num >= 7), aes(x =  Timepoint_ID_num, y = Q2, group = Trt, col = Trt), linewidth = 0.75, linetype = "dashed") +
+  geom_point(data = dataplot3, aes(x = Timepoint_ID_num, y = Q2, fill = Trt), size = 3.5, shape = 24) +
+  scale_color_manual(values = c("#005AB5", "#DC3220"), name = "") +
   theme_bw() +
-  scale_x_discrete(drop=F) +
-  xlab("") +
+  scale_x_continuous(breaks = 0:14) +
+  scale_y_continuous(labels=label_math(), breaks = seq(0,8,2)) +
+  xlab("Time since randomisation (days)") +
   ylab("SARS-CoV-2 genomes/mL") + 
   theme(axis.title  = element_text(face = "bold"),
         plot.title = element_text(face = "bold"),
-        legend.position = "bottom") +
-  ggtitle(paste0(intervention, " vs ", ref_arm)) +
-  annotate("text", x = 5, y = 8, label = paste(intervention,':', length(unique(dataplot$ID[dataplot$Trt == intervention])), "patients", sep = " "), hjust = 0) +
-  annotate("text", x = 5, y = 7.5, label = paste(ref_arm,':', length(unique(dataplot$ID[dataplot$Trt == ref_arm])), "patients", sep = " "), hjust = 0)    
+        legend.position = "bottom",
+        axis.text = element_text(size = 10)) +
+  ggtitle("Viral load dynamics") +
+  annotate("text", x = 6, y = 8.5, label = paste(intervention,':', length(unique(dataplot$ID[dataplot$Trt == intervention])), "patients", sep = " "), hjust = 0) +
+  annotate("text", x = 6, y = 8, label = paste(ref_arm,':', length(unique(dataplot$ID[dataplot$Trt == ref_arm])), "patients", sep = " "), hjust = 0)    
 
-G2    
+G2   
+
 ######################################################################################################
-png("Plots/Fluoxetine_analysis.png", width = 10, height = 6, units = "in", res = 350)
-ggarrange(G2, G1, nrow = 1, ncol = 2, align = "h", labels = "AUTO")
+png("Plots/Fluoxetine_analysis.png", width = 10, height = 5, units = "in", res = 350)
+ggarrange(G2, G1, nrow = 1, ncol = 2, align = "hv", labels = "AUTO")
 dev.off()
 ######################################################################################################
-# 3. Individual half-life: using 5 days follow-up estimate
-Dmax <- 5
+# 3. Individual half-life
+Dmax <- 7
 flag <-which(model_settings$Dmax == Dmax & model_settings$intervention == "Fluoxetine" & grepl("Linear_", model_settings$mod))
 load(paste('Rout/model_fits_new/model_fits_',model_settings$i[flag],'.RData',sep=''))
 
@@ -144,10 +175,11 @@ G3 <- ggplot(t_half, aes(x = i, y = med, col = Trt)) + geom_point() +
   theme_bw() +
   coord_flip(ylim=c(0, 50)) +
   scale_y_continuous(expand = c(0,0)) +
-  geom_errorbar(aes(ymin = L95, ymax = U95), width = 0, alpha = 0.4) +
-  geom_hline(data = med_t_half, aes(yintercept = med, col = Trt), linetype = "dashed", linewidth = 0.75) +
-  scale_color_manual(values = c("#186F65", "#E55604"), name = "") +
-  ylab("Viral clearance half life (hours)") +
+  geom_errorbar(aes(ymin = L80, ymax = U80), width = 0, alpha = 0.4) +
+  geom_hline(data = med_t_half, aes(yintercept = med, col = Trt, linetype = Trt), linewidth = 0.75) +
+  scale_color_manual(values = c("#005AB5", "#DC3220"), name = "") +
+  scale_linetype_manual(values = c("dashed","dashed"), guide = "none") +
+  ylab("Viral clearance half-life (hours)") +
   xlab("") +
   theme(
     axis.text.y = element_blank(),
@@ -155,9 +187,9 @@ G3 <- ggplot(t_half, aes(x = i, y = med, col = Trt)) + geom_point() +
     axis.title  = element_text(face = "bold"),
     plot.title = element_text(face = "bold"),
     legend.position = "bottom") +
-  ggtitle(paste0("Follow-up duration: ", Dmax, " days"))
+  ggtitle(paste0("Viral clearance half-life"))
 ######################################################################################################  
-png("Plots/Fluoxetine_analysis_half_life_5d.png", width = 6, height = 6, units = "in", res = 350)
+png("Plots/Fluoxetine_analysis_half_life_7d.png", width = 5, height = 5, units = "in", res = 350)
 G3
 dev.off()
 ######################################################################################################
