@@ -26,7 +26,7 @@ sessionInfo()
 
 rstan_options(auto_write = TRUE)
 ## parameters for the analysis
-Dmax = 8
+Dmax = c(5.5, 8)
 study_threshold = 1.2
 RUN_MODELS = F
 
@@ -118,10 +118,17 @@ tab.ff
 #| echo: false
 source('priors.R')
 
+covs_base = c('Study_time','Site')
+covs_full=c(covs_base, 'Age_scaled','Symptom_onset','N_dose')
+
 # Analysis data
-platcov_dat_analysis = 
+platcov_dat_analysis_list = list()
+stan_inputs = list()
+
+for(i in 1:length(Dmax)){
+  platcov_dat_analysis_list[[i]] = 
   platcov_dat %>% ungroup() %>%
-  filter(Time <= Dmax, mITT) %>%
+  filter(Time <= Dmax[i], mITT) %>%
   arrange(log10_viral_load==log10_cens_vl) %>%
   mutate(Variant = as.factor(Variant),
          Site = as.factor(Site),
@@ -130,37 +137,40 @@ platcov_dat_analysis =
          SD_age = sd(Age[!duplicated(ID)]),
          Age_scaled = (Age-Mean_age)/SD_age,
          Symptom_onset = ifelse(is.na(Symptom_onset),2,Symptom_onset)) 
+  
+writeLines(sprintf('Analysis dataset for follow-up duration of %s days contains %s patients and %s datapoints (%s above LLOD, %s%%)',
+                   max(floor(platcov_dat_analysis_list[[i]]$Time)),
+                   length(unique(platcov_dat_analysis_list[[i]]$ID)),
+                   nrow(platcov_dat_analysis_list[[i]]),
+                   sum(platcov_dat_analysis_list[[i]]$CT_NS<40),
+                   round(100*mean(platcov_dat_analysis_list[[i]]$CT_NS<40))))
 
-
-writeLines(sprintf('Analysis dataset contains %s patients and %s datapoints (%s above LLOD, %s%%)',
-                   length(unique(platcov_dat_analysis$ID)),
-                   nrow(platcov_dat_analysis),
-                   sum(platcov_dat_analysis$CT_NS<40),
-                   round(100*mean(platcov_dat_analysis$CT_NS<40))))
-
-covs_base = c('Study_time','Site')
-covs_full=c(covs_base, 'Age_scaled','Symptom_onset','N_dose')
-stan_inputs = 
-  make_stan_inputs(input_data_fit = platcov_dat_analysis,
+stan_inputs[[i]] = 
+  make_stan_inputs(input_data_fit = platcov_dat_analysis_list[[i]],
                    int_covs_base = covs_base,
                    int_covs_full = covs_full,
                    slope_covs_base = covs_base,
                    slope_covs_full = covs_full,
                    trt_frmla = formula('~ Trt'),
-                   Dmax = Dmax)
+                   Dmax = Dmax[i])
+  
+}
 ```
 
 ```{r setup_models}
 all_mods = list.files('Stan_models',full.names = TRUE,pattern = '*stan')
 
-model_settings = expand.grid(mod = all_mods[1],
-                             prior = 1,
-                             cov_matrices = 1)
+model_settings = expand.grid(mod = all_mods,
+                             prior = 1:2,
+                             cov_matrices = 1:2, 
+                             dataset = 1:2)
 
-model_settings$Niter = 2000
-model_settings$Nwarmup = 1000
+model_settings$Niter = 4000
+model_settings$Nwarmup = 2000
 model_settings$Nthin = 4
 model_settings$Nchain = 4
+
+model_settings$intervention <- intervention
 
 writeLines(sprintf('We are running all models with %s chains and %s samples for each chain, discarding %s for burn-in and thining every %s, thus giving a total of %s posterior samples per model.',
                    unique(model_settings$Nchain),
@@ -171,7 +181,7 @@ writeLines(sprintf('We are running all models with %s chains and %s samples for 
 
 model_setup_f_name = paste0('Rout/model_run_setup_',intervention,'.RData')
 save(model_settings, 
-     platcov_dat_analysis,
+     platcov_dat_analysis_list,
      stan_inputs, 
      all_priors,
      file = model_setup_f_name)
@@ -222,4 +232,3 @@ plot_effect_estimates(effect_ests = effect_ests,
                       mod_cols = model_cols[1],
                       my_pch = 15)
 ```
-
