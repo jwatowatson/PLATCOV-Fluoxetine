@@ -235,7 +235,7 @@ formatter <- function(x){
 ```{r}
 effect_ests <- list()
 model_settings$i <- 1:nrow(model_settings)
-num <- as.numeric(str_extract(ff, "[0-9]+")) - 16
+num <- as.numeric(str_extract(ff, "[0-9]+")) - 16 # subtract 16 to adjust the indice, because the results were run on the same batch with the main analysis
 
 for(i in 1:length(num)){
   print(i)
@@ -315,26 +315,4 @@ G1
 png("Plots/Fig4_Fluoxetine_meta_analysis.png", width = 6, height = 6, units = "in", res = 350)
 G1
 dev.off()
-```
-
-# Plot treatment effect
-
-```{r get_effects}
-effect_ests=list()
-for(i in 1:length(ff)){
-  load(ff[i])
-  effect_ests[[i]] = 
-    summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%','10%','50%','90%','97.5%'),drop=F]
-  rownames(effect_ests[[i]])=trts
-}
-```
-
-```{r Figure_main, fig.height=7, fig.width=10}
-par(las=1, mar=c(5,7,2,2),cex.lab=1.3, cex.axis=1.3)
-# plot_serial_data(xx = platcov_dat_analysis)
-plot_effect_estimates(effect_ests = effect_ests,
-                      plot_models = 1:length(ff),
-                      study_threshold = study_threshold,
-                      mod_cols = model_cols[1],
-                      my_pch = 15)
 ```
