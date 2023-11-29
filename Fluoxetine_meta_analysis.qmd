@@ -194,7 +194,7 @@ if(RUN_MODELS){
 ```
 
 ```{r}
-ff = list.files('Rout/', pattern = intervention)
+ff = list.files('Rout/', pattern = paste0(intervention, ".RData"))
 ff = ff[grep(pattern = 'model_fits_',x = ff)]
 if(!length(ff)==nrow(model_settings)) stop('not all outputs are ready for all model settings')
 ff = paste0('Rout/',ff)
@@ -206,9 +206,115 @@ main model selection
 main_mod = which(model_settings$prior==1&
                    model_settings$cov_matrices==1&
                    model_settings$mod==all_mods[1])
+main_mod
+# model_cols = brewer.pal(n = nrow(model_settings), name = 'Set1')
+# names(model_cols) = paste('model', 1:nrow(model_settings))
+```
 
-model_cols = brewer.pal(n = nrow(model_settings), name = 'Set1')
-names(model_cols) = paste('model', 1:nrow(model_settings))
+# Plots
+
+```{r}
+library(ggplot2)
+library(fitdistrplus)
+library(tidyr)
+library(ggpubr)
+library(rstan)
+library(dplyr)
+library(scales)
+
+my_probs = c(0.025, 0.1, .5, .9, .975)
+source('functions.R')
+```
+
+```{r}
+formatter <- function(x){ 
+  (x-1)*100 
+}
+```
+
+```{r}
+effect_ests <- list()
+model_settings$i <- 1:nrow(model_settings)
+num <- as.numeric(str_extract(ff, "[0-9]+")) - 16
+
+for(i in 1:length(num)){
+  print(i)
+  print(ff[i])
+  load(ff[i])
+  
+  dat <- platcov_dat_analysis_list[1:2][model_settings$dataset[num[i]]][[1]]
+  
+  
+  intervention = model_settings$intervention[num[i]] # prefix of analysis file
+  ref_arm = "No study drug" # model_settings$ref_arm[i]
+  trt_intervention = unique(dat$Trt)
+  trts = trt_intervention[trt_intervention!=ref_arm] # get interventions
+  effect_ests[[num[i]]] = 
+    as.data.frame(exp(summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%', '10%','50%','90%','97.5%'),drop=F]))
+  
+  effect_ests[[num[i]]]$mod <- model_settings$mod[num[i]]
+  effect_ests[[num[i]]]$i <- model_settings$i[num[i]]
+  effect_ests[[num[i]]]$trt <- trts
+  effect_ests[[num[i]]]$Dmax <- Dmax[model_settings$dataset[num[i]]]
+}
+
+effect_ests
+```
+
+```{r}
+
+flag_fluoxetine_meta <- c(1,2,9,10)
+effect_fluoxetine_meta <- (do.call("rbind", effect_ests[flag_fluoxetine_meta]))
+
+#Trt_meta <- row.names(effect_fluoxetine_meta)
+#effect_fluoxetine_meta <- data.frame(effect_fluoxetine_meta, Trt_meta)
+
+#effect_fluoxetine_meta$model <- rep(model_settings$mod[flag_fluoxetine_meta], each = length(unique(Trt_meta)))
+effect_fluoxetine_meta$model <- as.factor(effect_fluoxetine_meta$mod)
+levels(effect_fluoxetine_meta$model) <- c("Linear", "Non-linear")
+effect_fluoxetine_meta$model <- factor(effect_fluoxetine_meta$model, levels = (c("Linear", "Non-linear")))
+
+
+#effect_fluoxetine_meta$Dmax <- rep(model_settings$Dmax[flag_fluoxetine_meta], each = length(unique(Trt_meta)))
+effect_fluoxetine_meta$Dmax <- as.factor(effect_fluoxetine_meta$Dmax)
+levels(effect_fluoxetine_meta$Dmax) <- c("5 days", "7 days")
+
+colnames(effect_fluoxetine_meta)[1:5] <- c("L95", "L80", "med", "U80", "U95")
+row.names(effect_fluoxetine_meta) <- NULL
+
+ effect_fluoxetine_meta$trt <- factor(effect_fluoxetine_meta$trt, levels = c("Ivermectin", "Favipiravir", "Fluoxetine", "Molnupiravir", "Remdesivir", "Nirmatrelvir"))
+# levels(effect_fluoxetine_meta$trt)[6] <- "Nirmatrelvir"
+
+G1 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear",], aes(x = trt, y = med, col = Dmax)) +
+  geom_point(position = position_dodge(width = 0.5), size = 3) +
+  geom_rect(aes(ymin = 0.6, ymax = 1.2, xmin = 0, xmax = 7), fill = "gray", alpha = 0.05, col = NA) +
+  theme_bw() +
+  coord_flip() +
+  geom_errorbar(aes(ymin = L95, ymax = U95), width = 0, position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trt, ymin = L80, ymax = U80),position = position_dodge(width = 0.5), width = 0, linewidth = 1) +
+  geom_point(position = position_dodge(width = 0.5), size = 3) +
+  geom_hline(yintercept = 1, col = "red", linetype = "dashed") +
+  scale_color_manual(values =  c("#004225", "#F99417"), name = "Follow-up duration") +
+  scale_shape_manual(values = c(16,17), name = "Model", guide = "none") +
+  scale_y_continuous(labels = formatter, limits = c(0.6, 2.8), expand = c(0,0),
+                     breaks = seq(0.8,2.8,0.2)) +
+  ylab("Change in rate of viral clearance (%)") +
+  xlab("") + 
+  theme(axis.title  = element_text(face = "bold"),
+        plot.title = element_text(face = "bold"),
+        legend.position = "bottom",
+        plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), 
+                           "inches")) +
+  ggtitle("Linear model")
+
+G1
+ # facet_wrap(.~model)
+```
+
+```{r}
+png("Plots/Fig4_Fluoxetine_meta_analysis.png", width = 6, height = 6, units = "in", res = 350)
+G1
+dev.off()
 ```
 
 # Plot treatment effect
