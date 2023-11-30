@@ -79,6 +79,14 @@ pop_table = platcov_dat %>% distinct(ID, .keep_all = T)
 table(Intervention=pop_table$Trt, `mITT population` = pop_table$mITT)
 ```
 
+```{r}
+platcov_dat$VariantClass_new <- as.character(platcov_dat$Variant)
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BA.5.2", "BA.5.5", "BQ.1")] <- "BA.5"
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BN.1.2", "BN.1.3", "CH.1.1")] <- "BA.2.75"
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("XBB1.5-like with F456L")] <- "XBB.1.5-like"
+platcov_dat$VariantClass_new <- as.factor(platcov_dat$VariantClass_new)
+```
+
 ## Baseline characteristics
 
 ```{r}
@@ -107,7 +115,7 @@ tab.ff <- Baseline_data %>% filter(mITT) %>%
   summary_factorlist(
     dependent = "Trt", # name of grouping / treatment variable
     explanatory = c("Site", "Age", 'Sex','BMI', "Weight", "Baseline.viral.load", 
-                    "Variant",'Symptom_onset','Vaccinated','Fever_Baseline'),
+                    "VariantClass_new",'Symptom_onset','Vaccinated','Fever_Baseline'),
     total_col = T, # add column with statistics for the whole sample
     add_row_total = F, # add column with number of valid cases
     include_row_missing_col = FALSE,
@@ -196,6 +204,12 @@ save(model_settings,
      stan_inputs, 
      all_priors,
      file = model_setup_f_name)
+```
+
+```{r}
+mITT_ID_fluoxetine <- as.data.frame(unique(platcov_dat_analysis_list[[1]]$ID))
+colnames(mITT_ID_fluoxetine) <- "ID"
+write.csv(mITT_ID_fluoxetine, "mITT_ID_fluoxetine.csv", row.names = F)
 ```
 
 ```{r}

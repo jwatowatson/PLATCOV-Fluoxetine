@@ -316,3 +316,51 @@ png("Plots/Fig4_Fluoxetine_meta_analysis.png", width = 6, height = 6, units = "i
 G1
 dev.off()
 ```
+
+timeline_dat\$Rand_date
+
+```{r}
+mITT_ID_fluoxetine <- read.csv("mITT_ID_fluoxetine.csv")
+
+timeline_dat <- platcov_dat_analysis_list[[1]]
+timeline_dat <- unique(timeline_dat[,c("ID", "Rand_date", "Trt")])
+timeline_dat$mITT_fluoxetine <- as.factor(as.numeric(timeline_dat$ID %in% mITT_ID_fluoxetine$ID))
+
+levels(timeline_dat$mITT_fluoxetine) <- c("No", "Yes")
+
+timeline_dat$Trt <- factor(timeline_dat$Trt, levels = (c("Ivermectin", "Remdesivir", "Favipiravir", "Molnupiravir", "Nirmatrelvir", "Fluoxetine", "No study drug")  ))
+
+timeline_dat$Rand_date <- as.Date(timeline_dat$Rand_date)
+
+start_year <- (min(timeline_dat$Rand_date))
+end_year <- (max(timeline_dat$Rand_date))
+
+
+G2 <- ggplot(data = timeline_dat, aes(x=Rand_date, y = Trt, col = mITT_fluoxetine)) +
+    geom_point(size = 3.5, alpha = 0.5) +
+    theme_bw() +
+    xlab("") +
+    ylab("") +
+    geom_vline(xintercept = seq.Date(start_year, end_year, "12 months"),
+               col = "red", linetype = "dashed") +
+    scale_x_date(date_labels =  "%b %y", breaks = seq.Date(start_year, end_year, "4 months"),
+                 limits = c(start_year, end_year))+
+    theme(axis.title = element_text(size = 15, face = "bold"),
+          strip.text = element_text(size = 15, face = "bold"),
+          axis.text = ggtext::element_markdown(size = 12),
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+          legend.text=element_text(size=10),
+          plot.title = element_text(size = 15, face = "bold"),
+          legend.position='bottom') +
+    scale_y_discrete(drop = F) +
+    scale_color_manual(values = rev(c("#BE3144", "gray")), name = "mITT in the main analysis")
+
+G2
+
+```
+
+```{r}
+png("Plots/FigSx_timeline.png", width = 8, height = 5, units = "in", res = 350)
+G2
+dev.off()
+```
