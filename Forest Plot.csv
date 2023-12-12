@@ -1,0 +1,10 @@
+Study,Author,Year,events in fluvoxamine,Total fluvoxamine,events in control,Total control,RR,95% CI (lower limit),95% CI (upper limit)
+STOP COVID 1,Lenze,2020,0,80,4,72,0.017,0,0.27
+STOP COVID 2,Reiersen,2023,9,272,10,275,0.91,0.38,2.2
+TOGETHER (fluvox.),Reis,2021,76,741,99,756,0.78,0.59,1.04
+TOGETHER (fluvox-budenoside),Reis,2023,7,738,8,738,0.88,0.32,2.4
+COVID-OUT,Bramante,2022,6,329,5,324,1.18,0.36,3.83
+ACTIV-6 low dose,McCarthy,2023,1,670,2,607,0.45,0.04,4.98
+ACTIV-6 high dose,Stewart,2023,1,589,2,586,0.5,0.05,5.47
+EFFaCo (mild COVID-19),Siripongboonsitti,2023,2,132,0,134,5.08,0.25,104.72
+EFFaCo (moderate COVID-19),Siripongboonsitti,2023,4,30,5,31,0.83,0.25,2.79

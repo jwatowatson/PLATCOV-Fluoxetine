@@ -112,13 +112,21 @@ tab.ff <- Baseline_data %>% filter(mITT) %>%
 tab.ff
 ```
 
+```{r}
+platcov_dat$VariantClass_new <- as.character(platcov_dat$Variant)
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BA.5.2", "BA.5.5", "BQ.1")] <- "BA.5"
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BN.1.2", "BN.1.3", "CH.1.1")] <- "BA.2.75"
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("XBB1.5-like with F456L")] <- "XBB.1.5-like"
+platcov_dat$VariantClass_new <- as.factor(platcov_dat$VariantClass_new)
+```
+
 ## Fit models
 
 ```{r}
 #| echo: false
 source('priors.R')
 
-covs_base = c('Study_time','Site')
+covs_base = c('Study_time','Site', 'VariantClass_new')
 covs_full=c(covs_base, 'Age_scaled','Symptom_onset','N_dose')
 
 # Analysis data

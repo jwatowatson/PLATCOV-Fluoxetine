@@ -137,7 +137,7 @@ tab.ff
 #| echo: false
 source('priors.R')
 
-covs_base = c('Study_time','Site')
+covs_base = c('Study_time','Site', 'VariantClass_new')
 covs_full=c(covs_base, 'Age_scaled','Symptom_onset','N_dose')
 
 # Analysis data
@@ -289,24 +289,96 @@ effect_ests
 # Results: Follow-up duration of 5 days
 
 ```{r}
-#main model 5 days # 1
+#main model 5 days with linear model # 1
 load(ff[which(num == 1)])
 effects <- (rstan::extract(out, par = 'trt_effect'))
 
 writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
                    sum(exp(effects$trt_effect[,1]) < 1.2)/length(effects$trt_effect[,1])
 ))
+
+
+eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
+eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+                   round(eff_flx[1], 2),
+                   round(eff_flx[2], 2),
+                   round(eff_flx[3], 2),
+                   round(eff_nir[1], 2),
+                   round(eff_nir[2], 2),
+                   round(eff_nir[3], 2)
+))
+```
+
+```{r}
+#main model 5 days with non-linear model # 2
+load(ff[which(num == 2)])
+effects <- (rstan::extract(out, par = 'trt_effect'))
+
+writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
+                   sum(exp(effects$trt_effect[,1]) < 1.2)/length(effects$trt_effect[,1])
+))
+
+
+eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
+eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+                   round(eff_flx[1], 2),
+                   round(eff_flx[2], 2),
+                   round(eff_flx[3], 2),
+                   round(eff_nir[1], 2),
+                   round(eff_nir[2], 2),
+                   round(eff_nir[3], 2)
+))
 ```
 
 # Results: Follow-up duration of 7 days
 
 ```{r}
-#main model 7 days # 9
+#main model 7 days with linear model # 9
 load(ff[which(num == 9)])
 effects <- (rstan::extract(out, par = 'trt_effect'))
 
 writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
                    sum(exp(effects$trt_effect[,1]) < 1.2)/length(effects$trt_effect[,1])
+))
+
+
+eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
+eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+                   round(eff_flx[1], 2),
+                   round(eff_flx[2], 2),
+                   round(eff_flx[3], 2),
+                   round(eff_nir[1], 2),
+                   round(eff_nir[2], 2),
+                   round(eff_nir[3], 2)
+))
+```
+
+```{r}
+#main model 7 days with non-linear model # 10
+load(ff[which(num == 10)])
+effects <- (rstan::extract(out, par = 'trt_effect'))
+
+writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
+                   sum(exp(effects$trt_effect[,1]) < 1.2)/length(effects$trt_effect[,1])
+))
+
+
+eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
+eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+                   round(eff_flx[1], 2),
+                   round(eff_flx[2], 2),
+                   round(eff_flx[3], 2),
+                   round(eff_nir[1], 2),
+                   round(eff_nir[2], 2),
+                   round(eff_nir[3], 2)
 ))
 ```
 
