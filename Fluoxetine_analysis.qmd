@@ -19,6 +19,7 @@ library(tidyverse)
 library(kableExtra)
 library(finalfit)
 library(RColorBrewer)
+library(grid)
 
 ## information on software/hardware used
 version
@@ -87,6 +88,10 @@ platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("XBB1.5-like wi
 platcov_dat$VariantClass_new <- as.factor(platcov_dat$VariantClass_new)
 ```
 
+```{r}
+trt_colors = get_trt_colors()
+```
+
 ## Baseline characteristics
 
 ```{r}
@@ -103,7 +108,7 @@ platcov_dat = platcov_dat %>% ungroup() %>%
          Variant = as.factor(Variant)#normalise
          )  %>%
   ungroup() %>%
-  mutate(trt_color = brewer.pal(name = 'Dark2',8)[c(1,7)][as.numeric(Trt)]) 
+  mutate(trt_color = trt_colors[as.character(Trt)]) 
 
 Baseline_data = platcov_dat %>% ungroup() %>% 
   distinct(ID, .keep_all = T) %>%
@@ -558,4 +563,115 @@ G3 <- ggplot(t_half, aes(x = i, y = med, col = Trt)) + geom_point() +
 png("Plots/Fig3_Fluoxetine_analysis_half_life_7d.png", width = 5, height = 5, units = "in", res = 350)
 G3
 dev.off()
+```
+
+# Traceplot
+
+```{r}
+#main model 7 days with linear model # 9
+load(ff[which(num == 9)])
+
+trace <- traceplot(out, pars = c("alpha_0", "beta_0", "trt_effect", "gamma_rnasep", "t_dof"),
+          ncol = 2, nrow = 3)
+
+png("Plots/FigSx_traceplot_main_analysis_7d.png", width = 8, height = 5, units = "in", res = 350)
+annotate_figure(trace,
+                top = textGrob("Traceplot for Fluoxetine analysis: Linear model with 7 days follow-up", gp = gpar(cex = 1.2, fontface="bold")))
+dev.off()
+```
+
+```{r}
+# 9 = linear model; 10 = non-linear model
+# 7-day follow-up
+model_list = list()
+mod_select <- c(9,10)
+
+stan_inputs_i <- stan_inputs[[model_settings$dataset[num == 9]]]
+platcov_dat_analysis <- data.frame("ID" = stan_inputs_i$analysis_data_stan$id,
+            "log10_viral_load" = stan_inputs_i$analysis_data_stan$log_10_vl,
+            "Time" = stan_inputs_i$analysis_data_stan$obs_day)
+
+ID_map <- stan_inputs_i$ID_map
+
+for(i in 1:length(mod_select)){
+  load(ff[which(num == mod_select[i])])
+  model_list[[i]] = out
+}
+
+
+preds <- lapply(model_list, rstan::extract, "preds")
+preds <- lapply(preds, `[[`, 1)
+preds_list <- lapply(preds, function(x) as.data.frame(t(apply(x, 2, quantile, c(0.025, 0.5, 0.975)))))
+preds_list <- lapply(preds_list, function(x) cbind(platcov_dat_analysis, x))
+models <- c("Linear", "Non-linear")
+preds_list <- Map(cbind, preds_list, models)
+col_names <- c(colnames(platcov_dat_analysis), c("low", "med", "up", "model"))
+preds_list <- lapply(preds_list, setNames, col_names)
+preds_list <- lapply(preds_list, function(x) data.frame(x, "censor" = c(rep("none", stan_inputs_i$analysis_data_stan$N_obs), 
+                                                                        rep("left", (stan_inputs_i$analysis_data_stan$Ntot - stan_inputs_i$analysis_data_stan$N_obs)))))
+preds_list <- lapply(preds_list, function(x) merge(x, ID_map, by.x = "ID", by.y = "ID_stan"))
+preds_list <- lapply(preds_list, function(x) merge(x, as.data.frame(Baseline_data[,c("ID", "Trt")]), by.x = "ID_key", by.y = "ID"))
+
+
+preds_dat <- do.call("rbind", preds_list)
+
+preds_dat$Trt <- as.character(preds_dat$Trt)
+preds_dat$Trt[preds_dat$Trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
+preds_dat$Trt <- as.factor(preds_dat$Trt)
+
+preds_dat$model <- as.factor(preds_dat$model)
+preds_dat$censor <- as.factor(preds_dat$censor)
+
+
+ID_map = merge(stan_inputs_i$ID_map, Baseline_data, by.x = 'ID_key',by.y = 'ID')
+ID_map <- ID_map[order(ID_map$Trt, ID_map$ID_key),]
+
+ind_plot_list <- list()
+for(i in 1:nrow(ID_map)){
+  
+  plot_data <- preds_dat %>% filter(ID_key == ID_map$ID_key[i])
+  lab <- paste0(plot_data$ID_key[1], "\n", plot_data$Trt[1])
+  
+  ind_plot_list[[i]] <- ggplot() +
+    geom_point(data = plot_data[plot_data$model == "Linear",], aes(x = Time, y = log10_viral_load, shape = censor),
+               size = 2.5, alpha = 0.7) +
+    geom_ribbon(data = plot_data, aes(x = Time, ymin = low, ymax = up, fill = model), alpha = 0.2) +
+    geom_line(data = plot_data, aes(x = Time, y = med, col = model), linewidth = 1) +
+    theme_bw() +
+    scale_y_continuous(labels=label_math(), breaks = seq(0,10,2)) +
+    coord_cartesian(ylim = c(0,9), xlim = c(0,7))+
+    scale_x_continuous(breaks = 0:14) +
+    ylab("") +
+    xlab("") +
+    theme(
+      axis.title  = element_text(face = "bold"),
+      plot.title = element_text(face = "bold", hjust = 0.5, size = 8),
+      legend.position = "right",
+      plot.margin = unit(c(0.1,0.1,0.1,0.1), 'lines')) +
+    scale_color_manual(values = c("#1640D6", "#BE3144"), name = "Model") +
+    scale_fill_manual(values = c("#1640D6", "#BE3144"), name = "Model") +
+    scale_shape_manual(values = c(17, 16), guide = "none", drop=FALSE) +
+    ggtitle(lab)
+  
+}
+```
+
+```{r}
+ind_plot_all <- ggarrange(plotlist =  ind_plot_list, nrow = 4, ncol = 4, common.legend = T, legend = "right")
+```
+
+```{r}
+for(i in 1:length(ind_plot_all)){
+
+png(paste0("Plots/Individual_plots/Ind_plot_", i, ".png"), width = 12, height = 8, units = "in", res = 350)
+
+print(annotate_figure( ind_plot_all[[i]], bottom = textGrob("Time since randomisation (days)", vjust = 0.5, gp = gpar(cex = 1.2, fontface="bold")),
+                left = textGrob("SARS-CoV-2 genomes/mL", rot = 90, gp = gpar(cex = 1.2, fontface="bold"))))
+dev.off()
+  
+  
+}
+
+
+
 ```

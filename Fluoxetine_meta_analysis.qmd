@@ -325,6 +325,14 @@ G1
 dev.off()
 ```
 
+```{r}
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s]",
+                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 9 & effect_fluoxetine_meta$trt == "Fluoxetine",]$med),2),
+                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 9 & effect_fluoxetine_meta$trt == "Fluoxetine",]$L95),2),
+                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 9 & effect_fluoxetine_meta$trt == "Fluoxetine",]$U95),2)
+))
+```
+
 timeline_dat\$Rand_date
 
 ```{r}
@@ -370,5 +378,19 @@ G2
 ```{r}
 png("Plots/FigSx_timeline.png", width = 8, height = 5, units = "in", res = 350)
 G2
+dev.off()
+```
+
+# Traceplot
+
+```{r}
+#main model 7 days with linear model # 9
+load(ff[which(num == 9)])
+
+trace <- traceplot(out, pars = c("alpha_0", "beta_0", "trt_effect", "gamma_rnasep", "t_dof"))
+
+png("Plots/FigSx_traceplot_meta_analysis_7d.png", width = 8, height = 5, units = "in", res = 350)
+annotate_figure(trace,
+                top = textGrob("Traceplot for meta-analysis: Linear model with 7 days follow-up", gp = gpar(cex = 1.2, fontface="bold")))
 dev.off()
 ```
