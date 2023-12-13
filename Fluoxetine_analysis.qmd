@@ -26,7 +26,7 @@ sessionInfo()
 
 rstan_options(auto_write = TRUE)
 ## parameters for the analysis
-Dmax = 8
+Dmax = c(5.5, 8)
 study_threshold = 1.2
 RUN_MODELS = F
 
@@ -79,6 +79,14 @@ pop_table = platcov_dat %>% distinct(ID, .keep_all = T)
 table(Intervention=pop_table$Trt, `mITT population` = pop_table$mITT)
 ```
 
+```{r}
+platcov_dat$VariantClass_new <- as.character(platcov_dat$Variant)
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BA.5.2", "BA.5.5", "BQ.1")] <- "BA.5"
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BN.1.2", "BN.1.3", "CH.1.1")] <- "BA.2.75"
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("XBB1.5-like with F456L")] <- "XBB.1.5-like"
+platcov_dat$VariantClass_new <- as.factor(platcov_dat$VariantClass_new)
+```
+
 ## Baseline characteristics
 
 ```{r}
@@ -107,7 +115,7 @@ tab.ff <- Baseline_data %>% filter(mITT) %>%
   summary_factorlist(
     dependent = "Trt", # name of grouping / treatment variable
     explanatory = c("Site", "Age", 'Sex','BMI', "Weight", "Baseline.viral.load", 
-                    "Variant",'Symptom_onset','Vaccinated','Fever_Baseline'),
+                    "VariantClass_new",'Symptom_onset','Vaccinated','Fever_Baseline'),
     total_col = T, # add column with statistics for the whole sample
     add_row_total = F, # add column with number of valid cases
     include_row_missing_col = FALSE,
@@ -129,11 +137,17 @@ tab.ff
 #| echo: false
 source('priors.R')
 
+covs_base = c('Study_time','Site', 'VariantClass_new')
+covs_full=c(covs_base, 'Age_scaled','Symptom_onset','N_dose')
+
 # Analysis data
 platcov_dat_analysis_list = list()
-platcov_dat_analysis_list[[1]] = 
+stan_inputs = list()
+
+for(i in 1:length(Dmax)){
+  platcov_dat_analysis_list[[i]] = 
   platcov_dat %>% ungroup() %>%
-  filter(Time <= 8, mITT) %>%
+  filter(Time <= Dmax[i], mITT) %>%
   arrange(log10_viral_load==log10_cens_vl) %>%
   mutate(Variant = as.factor(Variant),
          Site = as.factor(Site),
@@ -142,36 +156,24 @@ platcov_dat_analysis_list[[1]] =
          SD_age = sd(Age[!duplicated(ID)]),
          Age_scaled = (Age-Mean_age)/SD_age,
          Symptom_onset = ifelse(is.na(Symptom_onset),2,Symptom_onset)) 
+  
+writeLines(sprintf('Analysis dataset for follow-up duration of %s days contains %s patients and %s datapoints (%s above LLOD, %s%%)',
+                   max(floor(platcov_dat_analysis_list[[i]]$Time)),
+                   length(unique(platcov_dat_analysis_list[[i]]$ID)),
+                   nrow(platcov_dat_analysis_list[[i]]),
+                   sum(platcov_dat_analysis_list[[i]]$CT_NS<40),
+                   round(100*mean(platcov_dat_analysis_list[[i]]$CT_NS<40))))
 
-platcov_dat_analysis_list[[2]] = 
-  platcov_dat %>% ungroup() %>%
-  filter(Time <= 5.5, mITT) %>%
-  arrange(log10_viral_load==log10_cens_vl) %>%
-  mutate(Variant = as.factor(Variant),
-         Site = as.factor(Site),
-         RnaseP_scaled = scale(40 - CT_RNaseP,scale = F),
-         Mean_age = mean(Age[!duplicated(ID)]),
-         SD_age = sd(Age[!duplicated(ID)]),
-         Age_scaled = (Age-Mean_age)/SD_age,
-         Symptom_onset = ifelse(is.na(Symptom_onset),2,Symptom_onset)) 
-
-
-writeLines(sprintf('Analysis dataset contains %s patients and %s datapoints (%s above LLOD, %s%%)',
-                   length(unique(platcov_dat_analysis_list[[1]]$ID)),
-                   nrow(platcov_dat_analysis_list[[1]]),
-                   sum(platcov_dat_analysis_list[[1]]$CT_NS<40),
-                   round(100*mean(platcov_dat_analysis_list[[1]]$CT_NS<40))))
-
-covs_base = c('Study_time','Site')
-covs_full=c(covs_base, 'Age_scaled','Symptom_onset','N_dose')
-stan_inputs = 
-  make_stan_inputs(input_data_fit = platcov_dat_analysis,
+stan_inputs[[i]] = 
+  make_stan_inputs(input_data_fit = platcov_dat_analysis_list[[i]],
                    int_covs_base = covs_base,
                    int_covs_full = covs_full,
                    slope_covs_base = covs_base,
                    slope_covs_full = covs_full,
                    trt_frmla = formula('~ Trt'),
-                   Dmax = Dmax)
+                   Dmax = Dmax[i])
+  
+}
 ```
 
 ```{r setup_models}
@@ -186,6 +188,8 @@ model_settings$Niter = 4000
 model_settings$Nwarmup = 2000
 model_settings$Nthin = 4
 model_settings$Nchain = 4
+
+model_settings$intervention <- intervention
 
 writeLines(sprintf('We are running all models with %s chains and %s samples for each chain, discarding %s for burn-in and thining every %s, thus giving a total of %s posterior samples per model.',
                    unique(model_settings$Nchain),
@@ -203,13 +207,19 @@ save(model_settings,
 ```
 
 ```{r}
+mITT_ID_fluoxetine <- as.data.frame(unique(platcov_dat_analysis_list[[1]]$ID))
+colnames(mITT_ID_fluoxetine) <- "ID"
+write.csv(mITT_ID_fluoxetine, "mITT_ID_fluoxetine.csv", row.names = F)
+```
+
+```{r}
 if(RUN_MODELS){
   system(paste('Rscript --vanilla run_models_local.R',intervention))
 }
 ```
 
 ```{r}
-ff = list.files('Rout/', pattern = intervention)
+ff = list.files('Rout/', pattern = paste0(intervention, ".RData"))
 ff = ff[grep(pattern = 'model_fits_',x = ff)]
 if(!length(ff)==nrow(model_settings)) stop('not all outputs are ready for all model settings')
 ff = paste0('Rout/',ff)
@@ -222,86 +232,330 @@ main_mod = which(model_settings$prior==1&
                    model_settings$cov_matrices==1&
                    model_settings$mod==all_mods[1])
 
-model_cols = brewer.pal(n = nrow(model_settings), name = 'Set1')
-names(model_cols) = paste('model', 1:nrow(model_settings))
+#model_cols = brewer.pal(n = nrow(model_settings), name = 'Set1')
+#names(model_cols) = paste('model', 1:nrow(model_settings))
+```
+
+# Plots
+
+```{r}
+library(ggplot2)
+library(fitdistrplus)
+library(tidyr)
+library(ggpubr)
+library(rstan)
+library(dplyr)
+library(scales)
+
+my_probs = c(0.025, 0.1, .5, .9, .975)
+source('functions.R')
+```
+
+```{r}
+formatter <- function(x){ 
+  (x-1)*100 
+}
+```
+
+```{r}
+effect_ests <- list()
+model_settings$i <- 1:nrow(model_settings)
+num <- as.numeric(str_extract(ff, "[0-9]+"))
+
+for(i in 1:length(num)){
+  print(i)
+  print(ff[i])
+  load(ff[i])
+  
+  dat <- platcov_dat_analysis_list[1:2][model_settings$dataset[num[i]]][[1]]
+  
+  
+  intervention = model_settings$intervention[num[i]] # prefix of analysis file
+  ref_arm = "No study drug" # model_settings$ref_arm[i]
+  trt_intervention = unique(dat$Trt)
+  trts = trt_intervention[trt_intervention!=ref_arm] # get interventions
+  effect_ests[[num[i]]] = 
+    as.data.frame(exp(summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%', '10%','50%','90%','97.5%'),drop=F]))
+  
+  effect_ests[[num[i]]]$mod <- model_settings$mod[num[i]]
+  effect_ests[[num[i]]]$i <- model_settings$i[num[i]]
+  effect_ests[[num[i]]]$trt <- trts
+  effect_ests[[num[i]]]$Dmax <- Dmax[model_settings$dataset[num[i]]]
+}
+
+effect_ests
+```
+
+# Results: Follow-up duration of 5 days
+
+```{r}
+#main model 5 days with linear model # 1
+load(ff[which(num == 1)])
+effects <- (rstan::extract(out, par = 'trt_effect'))
+
+writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
+                   sum(exp(effects$trt_effect[,1]) < 1.2)/length(effects$trt_effect[,1])
+))
+
+
+eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
+eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+                   round(eff_flx[1], 2),
+                   round(eff_flx[2], 2),
+                   round(eff_flx[3], 2),
+                   round(eff_nir[1], 2),
+                   round(eff_nir[2], 2),
+                   round(eff_nir[3], 2)
+))
+```
+
+```{r}
+#main model 5 days with non-linear model # 2
+load(ff[which(num == 2)])
+effects <- (rstan::extract(out, par = 'trt_effect'))
+
+writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
+                   sum(exp(effects$trt_effect[,1]) < 1.2)/length(effects$trt_effect[,1])
+))
+
+
+eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
+eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+                   round(eff_flx[1], 2),
+                   round(eff_flx[2], 2),
+                   round(eff_flx[3], 2),
+                   round(eff_nir[1], 2),
+                   round(eff_nir[2], 2),
+                   round(eff_nir[3], 2)
+))
+```
+
+# Results: Follow-up duration of 7 days
+
+```{r}
+#main model 7 days with linear model # 9
+load(ff[which(num == 9)])
+effects <- (rstan::extract(out, par = 'trt_effect'))
+
+writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
+                   sum(exp(effects$trt_effect[,1]) < 1.2)/length(effects$trt_effect[,1])
+))
+
+
+eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
+eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+                   round(eff_flx[1], 2),
+                   round(eff_flx[2], 2),
+                   round(eff_flx[3], 2),
+                   round(eff_nir[1], 2),
+                   round(eff_nir[2], 2),
+                   round(eff_nir[3], 2)
+))
+```
+
+```{r}
+#main model 7 days with non-linear model # 10
+load(ff[which(num == 10)])
+effects <- (rstan::extract(out, par = 'trt_effect'))
+
+writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
+                   sum(exp(effects$trt_effect[,1]) < 1.2)/length(effects$trt_effect[,1])
+))
+
+
+eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
+eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+                   round(eff_flx[1], 2),
+                   round(eff_flx[2], 2),
+                   round(eff_flx[3], 2),
+                   round(eff_nir[1], 2),
+                   round(eff_nir[2], 2),
+                   round(eff_nir[3], 2)
+))
 ```
 
 # Plot treatment effect
 
-```{r get_effects}
-effect_ests=list()
-for(i in 1:length(ff)){
-  load(ff[i])
-  effect_ests[[i]] = 
-    summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%','10%','50%','90%','97.5%'),drop=F]
-  rownames(effect_ests[[i]])=trts
-}
-```
+```{r}
 
-```{r Figure_main, fig.height=7, fig.width=10}
-par(las=1, mar=c(5,5,2,2),cex.lab=1.3, cex.axis=1.3, mfrow=c(1,2))
-plot_serial_data(xx = platcov_dat_analysis)
-plot_effect_estimates(effect_ests = effect_ests,
-                      plot_models = 1:length(ff),
-                      study_threshold = study_threshold,
-                      mod_cols = model_cols[1:length(ff)],
-                      my_pch = 15)
-# title(intervention)
-legend('right',pch=15:16,legend = c('Linear','Non-linear'),
-       col = model_cols,inset=0.03, cex=1.5)
+flag_fluoxetine <- c(1,2,9,10)
+effect_fluoxetine <- effect_ests[flag_fluoxetine]
+effect_fluoxetine <- as.data.frame(do.call("rbind", effect_fluoxetine))
 
-load(ff[main_mod])
-round(100*(exp(quantile(rstan::extract(out, pars = 'trt_effect')$trt_effect, probs = my_probs))-1))
+effect_fluoxetine$model <- as.factor(effect_fluoxetine$mod)
+levels(effect_fluoxetine$model) <- c("Linear", "Non-linear")
+effect_fluoxetine$model <- factor(effect_fluoxetine$model, levels = (c("Linear", "Non-linear")))
 
-writeLines(sprintf('Probability that the effect is less than %s%% is %s',study_threshold,
-                   mean(rstan::extract(out, pars = 'trt_effect')$trt_effect<log(study_threshold))))
+effect_fluoxetine$Dmax <- as.factor(effect_fluoxetine$Dmax)
+levels(effect_fluoxetine$Dmax) <- c("5 days", "7 days")
 
-load(ff[2])
-round(100*(exp(quantile(rstan::extract(out, pars = 'trt_effect')$trt_effect, probs = my_probs))-1))
+colnames(effect_fluoxetine)[1:5] <- c("L95", "L80", "med", "U80", "U95")
 
-writeLines(sprintf('Probability that the effect is less than %s%% is %s',study_threshold,
-                   mean(rstan::extract(out, pars = 'trt_effect')$trt_effect<log(study_threshold))))
-```
+effect_fluoxetine$trt <- as.character(effect_fluoxetine$trt)
+effect_fluoxetine$trt[effect_fluoxetine$trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
+effect_fluoxetine$trt <- as.factor(effect_fluoxetine$trt)
 
-```{r slopes_plot}
-load(ff[main_mod])
-par(las=1, cex.lab=1.5, cex.axis=1.5)
-trt_cols = rev(unique(platcov_dat_analysis$trt_color))
-names(trt_cols) = unique(platcov_dat_analysis$Trt)
-par(mar=c(5,5,2,2))
-xx=make_slopes_plot(stan_out = out, 
-                    analysis_data_stan = stan_inputs$analysis_data_stan,
-                    ID_map = stan_inputs$ID_map,
-                    data_summary = Baseline_data,
-                    my_lims = c(0,50),
-                    my_vals = c(5,15,25,35,45))
+G1 <- ggplot(effect_fluoxetine, 
+       aes(x = trt, y = med, col = Dmax, shape = model)) +
+  geom_point(position = position_dodge(width = 0.5), size = 4) +
+  geom_errorbar(aes(x = trt, ymin = L95, ymax = U95),position = position_dodge(width = 0.5), width = 0, linewidth = 0.65) +
+  geom_errorbar(aes(x = trt, ymin = L80, ymax = U80),position = position_dodge(width = 0.5), width = 0, linewidth = 1.5) +
+  geom_rect(aes(ymin = 0.9, ymax = 1.2, xmin = 0, xmax = 3), fill = "#7D7C7C", alpha = 0.05, col = NA) +
+  facet_grid(model~., scales = "free") +
+  coord_flip() +
+  theme_bw() +
+  geom_hline(yintercept = 1, col = "red", linetype = "dashed") +
+  scale_color_manual(values = c("#004225", "#F99417"), name = "Follow-up duration") +
+  scale_shape_manual(values = c(16,17), name = "Model", guide = "none") +
+  scale_y_continuous(labels = formatter, limits = c(0.9, 2.8), expand = c(0,0)) +
+  ylab("Change in viral clearance rate (%)") +
+  xlab("") +
+  ggtitle("B) Estimated treatment effects")  + 
+  theme(axis.title  = element_text(face = "bold"),
+        plot.title = element_text(face = "bold"),
+        legend.position = "bottom",
+        axis.text = element_text(size = 10))
+G1
+
 
 ```
 
-```{r coef_plot}
-coef_to_plot=1
-coef_model = which(model_settings$prior==1&
-                     model_settings$cov_matrices==coef_to_plot&
-                     model_settings$mod==all_mods[2])
-load(ff[coef_model])
-par(las=1, mfrow=c(1,2), mar=c(5,7,2,2))
-plot_coef_effects(stan_out = out,cov_mat = coef_to_plot,stan_inputs = stan_inputs)
+# Plot viral load dynamics
+
+```{r}
+dataplot <- platcov_dat
+dataplot$Time
+
+dataplot$Trt <- as.character(dataplot$Trt)
+dataplot$Trt[dataplot$Trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
+dataplot$Trt <- as.factor(dataplot$Trt)
+
+
+
+dataplot = 
+  dataplot %>% ungroup() %>%
+  filter(Timepoint_ID %in% c(0:7, 10, 14), mITT) %>%
+  arrange(log10_viral_load==log10_cens_vl) %>%
+  mutate(Variant = as.factor(Variant),
+         Site = as.factor(Site),
+         RnaseP_scaled = scale(40 - CT_RNaseP,scale = F),
+         Mean_age = mean(Age[!duplicated(ID)]),
+         SD_age = sd(Age[!duplicated(ID)]),
+         Age_scaled = (Age-Mean_age)/SD_age,
+         Symptom_onset = ifelse(is.na(Symptom_onset),2,Symptom_onset)) 
+
+dataplot$Timepoint_ID_num <- dataplot$Timepoint_ID
+
+dataplot2 <- aggregate(log10_viral_load~ID+Timepoint_ID+Timepoint_ID_num+Trt+Site+BMI+Plate+Age+Sex+Symptom_onset, 
+                       data = dataplot, FUN = median)
+
+dataplot3<- aggregate(log10_viral_load~Timepoint_ID+Timepoint_ID_num+Trt, data = dataplot, FUN = quantile, c(0.25, 0.5, 0.75))
+dataplot3[,4:6] <- as.data.frame(as.matrix(dataplot3[,4]))
+colnames(dataplot3)[4:6] <- c("Q1", "Q2", "Q3")
+
+
+
+
+G2 <- ggplot() +
+  geom_jitter(data = dataplot, aes(x = Timepoint_ID_num, y = log10_viral_load, col = Trt), 
+              alpha = 0.2, size = 1.5, shape = 21,
+              width = 0.15) +
+  scale_fill_manual(values = c("#005AB5", "#DC3220", "#F99417"), name = "") +
+  geom_line(data = subset(dataplot3, Timepoint_ID_num <= 7), aes(x =  Timepoint_ID_num, y = Q2, group = Trt, col = Trt), linewidth = 1, linetype = 1) +
+  geom_line(data = subset(dataplot3,  Timepoint_ID_num >= 7), aes(x =  Timepoint_ID_num, y = Q2, group = Trt, col = Trt), linewidth = 0.75, linetype = "dashed") +
+  geom_point(data = dataplot3, aes(x = Timepoint_ID_num, y = Q2, fill = Trt), size = 3.5, shape = 24) +
+  scale_color_manual(values = c("#005AB5", "#DC3220", "#F99417"), name = "") +
+  theme_bw() +
+  scale_x_continuous(breaks = 0:14) +
+  scale_y_continuous(labels=label_math(), breaks = seq(0,8,2)) +
+  xlab("Time since randomisation (days)") +
+  ylab("SARS-CoV-2 genomes/mL") + 
+  theme(axis.title  = element_text(face = "bold"),
+        plot.title = element_text(face = "bold"),
+        legend.position = "bottom",
+        axis.text = element_text(size = 10)) +
+  ggtitle("A) Viral load dynamics")
+
+G2   
+
 ```
 
-## Individual patient data
+```{r}
+Fig2 <- ggarrange(G2, G1)
+png("Plots/Fig2_Fluoxetine_analysis.png", width = 10, height = 5, units = "in", res = 350)
+Fig2
+dev.off()
 
-```{r individ_data}
-model_list = list()
-for(i in 1:length(ff)){
-  load(ff[i])
-  model_list[[i]] = out
-}
+```
 
-ID_map = merge(stan_inputs$ID_map, Baseline_data, by.x = 'ID_key',by.y = 'ID')
-par(mfrow=c(4,4), mar=c(2,2,2,2),las=1)
-plot_data_model_fits(model_list = model_list, 
-                     models_to_plot = 1:2,
-                     K_plots = 16,mod_cols = model_cols,
-                     ID_map = ID_map,
-                     analysis_data_stan = stan_inputs$analysis_data_stan)
+# Plot half-life
+
+```{r}
+# 3. Individual half-life
+print(model_settings)
+load(ff[which(num == 1)])
+
+slopes <- as.data.frame(-1*(summary(out, pars='slope',use_cache=F,probs=my_probs)$summary[,c('2.5%','10%','50%','90%','97.5%'),drop=F]))
+colnames(slopes) <- c("L95", "L80", "med", "U80", "U95")
+t_half <- (log10(2)/(slopes)*24)
+
+platcov_dat_analysis <- platcov_dat_analysis_list[[1]]
+
+# platcov_dat <- data_list[[1]]
+# 
+# platcov_dat_analysis = 
+#   platcov_dat %>% ungroup() %>%
+#   filter(Time <= Dmax, mITT) %>%
+#   arrange(log10_viral_load==log10_cens_vl) %>%
+#   mutate(Variant = as.factor(Variant),
+#          Site = as.factor(Site),
+#          RnaseP_scaled = scale(40 - CT_RNaseP,scale = F),
+#          Mean_age = mean(Age[!duplicated(ID)]),
+#          SD_age = sd(Age[!duplicated(ID)]),
+#          Age_scaled = (Age-Mean_age)/SD_age,
+#          Symptom_onset = ifelse(is.na(Symptom_onset),2,Symptom_onset)) 
+
+t_half <- cbind(t_half, unique(platcov_dat_analysis[,c("ID", "Trt")]))
+t_half <- as.data.frame(t_half)
+t_half <- t_half[order(t_half$Trt, t_half$med),]
+t_half$i <- 1:nrow(t_half)
+
+t_half$Trt <- as.character(t_half$Trt)
+t_half$Trt[t_half$Trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
+t_half$Trt <- as.factor(t_half$Trt)
+t_half$Trt <- factor(t_half$Trt, levels = c("Fluoxetine", "Nirmatrelvir", "No study drug"))
+
+med_t_half <- aggregate(list("med" = t_half$med), by = list("Trt" = t_half$Trt), median)
+
+G3 <- ggplot(t_half, aes(x = i, y = med, col = Trt)) + geom_point() +
+  theme_bw() +
+  coord_flip(ylim=c(0, 50)) +
+  scale_y_continuous(expand = c(0,0)) +
+  geom_errorbar(aes(ymin = L80, ymax = U80), width = 0, alpha = 0.4) +
+  geom_hline(data = med_t_half, aes(yintercept = med, col = Trt, linetype = Trt), linewidth = 0.75) +
+  scale_color_manual(values = c("#005AB5", "#DC3220", "#F99417"), name = "") +
+  scale_linetype_manual(values = c("dashed","dashed", "dashed"), guide = "none") +
+  ylab("Viral clearance half-life (hours)") +
+  xlab("") +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title  = element_text(face = "bold"),
+    plot.title = element_text(face = "bold"),
+    legend.position = "bottom") +
+  ggtitle(paste0("Viral clearance half-life"))
+```
+
+```{r}
+png("Plots/Fig3_Fluoxetine_analysis_half_life_7d.png", width = 5, height = 5, units = "in", res = 350)
+G3
+dev.off()
 ```

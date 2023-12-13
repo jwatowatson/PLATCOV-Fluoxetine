@@ -112,16 +112,31 @@ tab.ff <- Baseline_data %>% filter(mITT) %>%
 tab.ff
 ```
 
+```{r}
+platcov_dat$VariantClass_new <- as.character(platcov_dat$Variant)
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BA.5.2", "BA.5.5", "BQ.1")] <- "BA.5"
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BN.1.2", "BN.1.3", "CH.1.1")] <- "BA.2.75"
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("XBB1.5-like with F456L")] <- "XBB.1.5-like"
+platcov_dat$VariantClass_new <- as.factor(platcov_dat$VariantClass_new)
+```
+
 ## Fit models
 
 ```{r}
 #| echo: false
 source('priors.R')
 
+covs_base = c('Study_time','Site', 'VariantClass_new')
+covs_full=c(covs_base, 'Age_scaled','Symptom_onset','N_dose')
+
 # Analysis data
-platcov_dat_analysis = 
+platcov_dat_analysis_list = list()
+stan_inputs = list()
+
+for(i in 1:length(Dmax)){
+  platcov_dat_analysis_list[[i]] = 
   platcov_dat %>% ungroup() %>%
-  filter(Time <= Dmax, mITT) %>%
+  filter(Time <= Dmax[i], mITT) %>%
   arrange(log10_viral_load==log10_cens_vl) %>%
   mutate(Variant = as.factor(Variant),
          Site = as.factor(Site),
@@ -130,37 +145,40 @@ platcov_dat_analysis =
          SD_age = sd(Age[!duplicated(ID)]),
          Age_scaled = (Age-Mean_age)/SD_age,
          Symptom_onset = ifelse(is.na(Symptom_onset),2,Symptom_onset)) 
+  
+writeLines(sprintf('Analysis dataset for follow-up duration of %s days contains %s patients and %s datapoints (%s above LLOD, %s%%)',
+                   max(floor(platcov_dat_analysis_list[[i]]$Time)),
+                   length(unique(platcov_dat_analysis_list[[i]]$ID)),
+                   nrow(platcov_dat_analysis_list[[i]]),
+                   sum(platcov_dat_analysis_list[[i]]$CT_NS<40),
+                   round(100*mean(platcov_dat_analysis_list[[i]]$CT_NS<40))))
 
-
-writeLines(sprintf('Analysis dataset contains %s patients and %s datapoints (%s above LLOD, %s%%)',
-                   length(unique(platcov_dat_analysis$ID)),
-                   nrow(platcov_dat_analysis),
-                   sum(platcov_dat_analysis$CT_NS<40),
-                   round(100*mean(platcov_dat_analysis$CT_NS<40))))
-
-covs_base = c('Study_time','Site')
-covs_full=c(covs_base, 'Age_scaled','Symptom_onset','N_dose')
-stan_inputs = 
-  make_stan_inputs(input_data_fit = platcov_dat_analysis,
+stan_inputs[[i]] = 
+  make_stan_inputs(input_data_fit = platcov_dat_analysis_list[[i]],
                    int_covs_base = covs_base,
                    int_covs_full = covs_full,
                    slope_covs_base = covs_base,
                    slope_covs_full = covs_full,
                    trt_frmla = formula('~ Trt'),
-                   Dmax = Dmax)
+                   Dmax = Dmax[i])
+  
+}
 ```
 
 ```{r setup_models}
 all_mods = list.files('Stan_models',full.names = TRUE,pattern = '*stan')
 
-model_settings = expand.grid(mod = all_mods[1],
-                             prior = 1,
-                             cov_matrices = 1)
+model_settings = expand.grid(mod = all_mods,
+                             prior = 1:2,
+                             cov_matrices = 1:2, 
+                             dataset = 1:2)
 
-model_settings$Niter = 2000
-model_settings$Nwarmup = 1000
+model_settings$Niter = 4000
+model_settings$Nwarmup = 2000
 model_settings$Nthin = 4
 model_settings$Nchain = 4
+
+model_settings$intervention <- intervention
 
 writeLines(sprintf('We are running all models with %s chains and %s samples for each chain, discarding %s for burn-in and thining every %s, thus giving a total of %s posterior samples per model.',
                    unique(model_settings$Nchain),
@@ -171,7 +189,7 @@ writeLines(sprintf('We are running all models with %s chains and %s samples for 
 
 model_setup_f_name = paste0('Rout/model_run_setup_',intervention,'.RData')
 save(model_settings, 
-     platcov_dat_analysis,
+     platcov_dat_analysis_list,
      stan_inputs, 
      all_priors,
      file = model_setup_f_name)
@@ -184,7 +202,7 @@ if(RUN_MODELS){
 ```
 
 ```{r}
-ff = list.files('Rout/', pattern = intervention)
+ff = list.files('Rout/', pattern = paste0(intervention, ".RData"))
 ff = ff[grep(pattern = 'model_fits_',x = ff)]
 if(!length(ff)==nrow(model_settings)) stop('not all outputs are ready for all model settings')
 ff = paste0('Rout/',ff)
@@ -196,29 +214,161 @@ main model selection
 main_mod = which(model_settings$prior==1&
                    model_settings$cov_matrices==1&
                    model_settings$mod==all_mods[1])
-
-model_cols = brewer.pal(n = nrow(model_settings), name = 'Set1')
-names(model_cols) = paste('model', 1:nrow(model_settings))
+main_mod
+# model_cols = brewer.pal(n = nrow(model_settings), name = 'Set1')
+# names(model_cols) = paste('model', 1:nrow(model_settings))
 ```
 
-# Plot treatment effect
+# Plots
 
-```{r get_effects}
-effect_ests=list()
-for(i in 1:length(ff)){
-  load(ff[i])
-  effect_ests[[i]] = 
-    summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%','10%','50%','90%','97.5%'),drop=F]
-  rownames(effect_ests[[i]])=trts
+```{r}
+library(ggplot2)
+library(fitdistrplus)
+library(tidyr)
+library(ggpubr)
+library(rstan)
+library(dplyr)
+library(scales)
+
+my_probs = c(0.025, 0.1, .5, .9, .975)
+source('functions.R')
+```
+
+```{r}
+formatter <- function(x){ 
+  (x-1)*100 
 }
 ```
 
-```{r Figure_main, fig.height=7, fig.width=10}
-par(las=1, mar=c(5,7,2,2),cex.lab=1.3, cex.axis=1.3)
-# plot_serial_data(xx = platcov_dat_analysis)
-plot_effect_estimates(effect_ests = effect_ests,
-                      plot_models = 1:length(ff),
-                      study_threshold = study_threshold,
-                      mod_cols = model_cols[1],
-                      my_pch = 15)
+```{r}
+effect_ests <- list()
+model_settings$i <- 1:nrow(model_settings)
+num <- as.numeric(str_extract(ff, "[0-9]+")) - 16 # subtract 16 to adjust the indice, because the results were run on the same batch with the main analysis
+
+for(i in 1:length(num)){
+  print(i)
+  print(ff[i])
+  load(ff[i])
+  
+  dat <- platcov_dat_analysis_list[1:2][model_settings$dataset[num[i]]][[1]]
+  
+  
+  intervention = model_settings$intervention[num[i]] # prefix of analysis file
+  ref_arm = "No study drug" # model_settings$ref_arm[i]
+  trt_intervention = unique(dat$Trt)
+  trts = trt_intervention[trt_intervention!=ref_arm] # get interventions
+  effect_ests[[num[i]]] = 
+    as.data.frame(exp(summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%', '10%','50%','90%','97.5%'),drop=F]))
+  
+  effect_ests[[num[i]]]$mod <- model_settings$mod[num[i]]
+  effect_ests[[num[i]]]$i <- model_settings$i[num[i]]
+  effect_ests[[num[i]]]$trt <- trts
+  effect_ests[[num[i]]]$Dmax <- Dmax[model_settings$dataset[num[i]]]
+}
+
+effect_ests
+```
+
+```{r}
+
+flag_fluoxetine_meta <- c(1,2,9,10)
+effect_fluoxetine_meta <- (do.call("rbind", effect_ests[flag_fluoxetine_meta]))
+
+#Trt_meta <- row.names(effect_fluoxetine_meta)
+#effect_fluoxetine_meta <- data.frame(effect_fluoxetine_meta, Trt_meta)
+
+#effect_fluoxetine_meta$model <- rep(model_settings$mod[flag_fluoxetine_meta], each = length(unique(Trt_meta)))
+effect_fluoxetine_meta$model <- as.factor(effect_fluoxetine_meta$mod)
+levels(effect_fluoxetine_meta$model) <- c("Linear", "Non-linear")
+effect_fluoxetine_meta$model <- factor(effect_fluoxetine_meta$model, levels = (c("Linear", "Non-linear")))
+
+
+#effect_fluoxetine_meta$Dmax <- rep(model_settings$Dmax[flag_fluoxetine_meta], each = length(unique(Trt_meta)))
+effect_fluoxetine_meta$Dmax <- as.factor(effect_fluoxetine_meta$Dmax)
+levels(effect_fluoxetine_meta$Dmax) <- c("5 days", "7 days")
+
+colnames(effect_fluoxetine_meta)[1:5] <- c("L95", "L80", "med", "U80", "U95")
+row.names(effect_fluoxetine_meta) <- NULL
+
+ effect_fluoxetine_meta$trt <- factor(effect_fluoxetine_meta$trt, levels = c("Ivermectin", "Favipiravir", "Fluoxetine", "Molnupiravir", "Remdesivir", "Nirmatrelvir"))
+# levels(effect_fluoxetine_meta$trt)[6] <- "Nirmatrelvir"
+
+G1 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear",], aes(x = trt, y = med, col = Dmax)) +
+  geom_point(position = position_dodge(width = 0.5), size = 3) +
+  geom_rect(aes(ymin = 0.6, ymax = 1.2, xmin = 0, xmax = 7), fill = "gray", alpha = 0.05, col = NA) +
+  theme_bw() +
+  coord_flip() +
+  geom_errorbar(aes(ymin = L95, ymax = U95), width = 0, position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trt, ymin = L80, ymax = U80),position = position_dodge(width = 0.5), width = 0, linewidth = 1) +
+  geom_point(position = position_dodge(width = 0.5), size = 3) +
+  geom_hline(yintercept = 1, col = "red", linetype = "dashed") +
+  scale_color_manual(values =  c("#004225", "#F99417"), name = "Follow-up duration") +
+  scale_shape_manual(values = c(16,17), name = "Model", guide = "none") +
+  scale_y_continuous(labels = formatter, limits = c(0.6, 2.8), expand = c(0,0),
+                     breaks = seq(0.8,2.8,0.2)) +
+  ylab("Change in rate of viral clearance (%)") +
+  xlab("") + 
+  theme(axis.title  = element_text(face = "bold"),
+        plot.title = element_text(face = "bold"),
+        legend.position = "bottom",
+        plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), 
+                           "inches")) +
+  ggtitle("Linear model")
+
+G1
+ # facet_wrap(.~model)
+```
+
+```{r}
+png("Plots/Fig4_Fluoxetine_meta_analysis.png", width = 6, height = 6, units = "in", res = 350)
+G1
+dev.off()
+```
+
+timeline_dat\$Rand_date
+
+```{r}
+mITT_ID_fluoxetine <- read.csv("mITT_ID_fluoxetine.csv")
+
+timeline_dat <- platcov_dat_analysis_list[[1]]
+timeline_dat <- unique(timeline_dat[,c("ID", "Rand_date", "Trt")])
+timeline_dat$mITT_fluoxetine <- as.factor(as.numeric(timeline_dat$ID %in% mITT_ID_fluoxetine$ID))
+
+levels(timeline_dat$mITT_fluoxetine) <- c("No", "Yes")
+
+timeline_dat$Trt <- factor(timeline_dat$Trt, levels = (c("Ivermectin", "Remdesivir", "Favipiravir", "Molnupiravir", "Nirmatrelvir", "Fluoxetine", "No study drug")  ))
+
+timeline_dat$Rand_date <- as.Date(timeline_dat$Rand_date)
+
+start_year <- (min(timeline_dat$Rand_date))
+end_year <- (max(timeline_dat$Rand_date))
+
+
+G2 <- ggplot(data = timeline_dat, aes(x=Rand_date, y = Trt, col = mITT_fluoxetine)) +
+    geom_point(size = 3.5, alpha = 0.5) +
+    theme_bw() +
+    xlab("") +
+    ylab("") +
+    geom_vline(xintercept = seq.Date(start_year, end_year, "12 months"),
+               col = "red", linetype = "dashed") +
+    scale_x_date(date_labels =  "%b %y", breaks = seq.Date(start_year, end_year, "4 months"),
+                 limits = c(start_year, end_year))+
+    theme(axis.title = element_text(size = 15, face = "bold"),
+          strip.text = element_text(size = 15, face = "bold"),
+          axis.text = ggtext::element_markdown(size = 12),
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+          legend.text=element_text(size=10),
+          plot.title = element_text(size = 15, face = "bold"),
+          legend.position='bottom') +
+    scale_y_discrete(drop = F) +
+    scale_color_manual(values = rev(c("#BE3144", "gray")), name = "mITT in the main analysis")
+
+G2
+
+```
+
+```{r}
+png("Plots/FigSx_timeline.png", width = 8, height = 5, units = "in", res = 350)
+G2
+dev.off()
 ```

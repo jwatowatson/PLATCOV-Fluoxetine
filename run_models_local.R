@@ -21,7 +21,7 @@ for(i in 1:nrow(model_settings)){
   
   mod = stan_model(file = as.character(model_settings$mod[i])) # compile 
   
-  stan_input_job = stan_inputs
+  stan_input_job = stan_inputs[[model_settings$dataset[i]]]
   
   analysis_data_stan = stan_input_job$analysis_data_stan
   analysis_data_stan$trt_mat = stan_input_job$Trt_matrix
