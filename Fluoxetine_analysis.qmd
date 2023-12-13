@@ -158,9 +158,9 @@ platcov_dat_analysis_list[[2]] =
 
 writeLines(sprintf('Analysis dataset contains %s patients and %s datapoints (%s above LLOD, %s%%)',
                    length(unique(platcov_dat_analysis_list[[1]]$ID)),
-                   nrow(platcov_dat_analysis),
-                   sum(platcov_dat_analysis$CT_NS<40),
-                   round(100*mean(platcov_dat_analysis$CT_NS<40))))
+                   nrow(platcov_dat_analysis_list[[1]]),
+                   sum(platcov_dat_analysis_list[[1]]$CT_NS<40),
+                   round(100*mean(platcov_dat_analysis_list[[1]]$CT_NS<40))))
 
 covs_base = c('Study_time','Site')
 covs_full=c(covs_base, 'Age_scaled','Symptom_onset','N_dose')

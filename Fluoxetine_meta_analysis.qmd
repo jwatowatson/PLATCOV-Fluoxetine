@@ -26,7 +26,7 @@ sessionInfo()
 
 rstan_options(auto_write = TRUE)
 ## parameters for the analysis
-Dmax = 8
+Dmax = c(5.5, 8)
 study_threshold = 1.2
 RUN_MODELS = F
 
@@ -222,4 +222,3 @@ plot_effect_estimates(effect_ests = effect_ests,
                       mod_cols = model_cols[1],
                       my_pch = 15)
 ```
-
