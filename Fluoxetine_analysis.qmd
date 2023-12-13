@@ -20,6 +20,7 @@ library(kableExtra)
 library(finalfit)
 library(RColorBrewer)
 library(grid)
+library(loo)
 
 ## information on software/hardware used
 version
@@ -580,6 +581,8 @@ annotate_figure(trace,
 dev.off()
 ```
 
+# Individual plots
+
 ```{r}
 # 9 = linear model; 10 = non-linear model
 # 7-day follow-up
@@ -625,7 +628,9 @@ preds_dat$censor <- as.factor(preds_dat$censor)
 
 ID_map = merge(stan_inputs_i$ID_map, Baseline_data, by.x = 'ID_key',by.y = 'ID')
 ID_map <- ID_map[order(ID_map$Trt, ID_map$ID_key),]
+```
 
+```{r}
 ind_plot_list <- list()
 for(i in 1:nrow(ID_map)){
   
@@ -671,7 +676,42 @@ dev.off()
   
   
 }
+```
 
+# Leave-one-out analysis
 
+```{r}
+# 9 = linear model; 10 = non-linear model
+# 7-day follow-up
+model_settings$i <- 1:nrow(model_settings)
+num <- as.numeric(str_extract(ff, "[0-9]+"))
 
+model_list = list()
+mod_select <- c(9,10)
+
+for(i in 1:length(mod_select)){
+  load(ff[which(num == mod_select[i])])
+  model_list[[i]] = out
+}
+```
+
+```{r}
+#linear
+log_lik_1 <- extract_log_lik(model_list[[1]], merge_chains = FALSE)
+r_eff <- relative_eff(exp(log_lik_1), cores = 2) 
+loo_1 <- loo(log_lik_1, r_eff = r_eff, cores = 2)
+print(loo_1)
+```
+
+```{r}
+#non-linear
+log_lik_2 <- extract_log_lik(model_list[[2]], merge_chains = FALSE)
+r_eff_2 <- relative_eff(exp(log_lik_2), cores = 2) 
+loo_2 <- loo(log_lik_2, r_eff = r_eff_2, cores = 2)
+print(loo_2)
+```
+
+```{r}
+comp <- loo_compare(loo_1, loo_2)
+print(comp)
 ```
