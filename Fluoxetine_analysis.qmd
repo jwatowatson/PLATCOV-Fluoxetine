@@ -1,6 +1,6 @@
 ---
-title: "Favipiravir PLATCOV"
-author: "James Watson"
+title: "Fluoxetine PLATCOV"
+author: "James Watson and Phrutsamon Wongnak"
 format: pdf
 editor: visual
 ---
@@ -261,12 +261,14 @@ source('functions.R')
 formatter <- function(x){ 
   (x-1)*100 
 }
+
+
+model_settings$i <- 1:nrow(model_settings)
+num <- as.numeric(str_extract(ff, "[0-9]+"))
 ```
 
 ```{r}
 effect_ests <- list()
-model_settings$i <- 1:nrow(model_settings)
-num <- as.numeric(str_extract(ff, "[0-9]+"))
 
 for(i in 1:length(num)){
   print(i)
@@ -467,18 +469,18 @@ dataplot3<- aggregate(log10_viral_load~Timepoint_ID+Timepoint_ID_num+Trt, data =
 dataplot3[,4:6] <- as.data.frame(as.matrix(dataplot3[,4]))
 colnames(dataplot3)[4:6] <- c("Q1", "Q2", "Q3")
 
-
-
+cols <- unique(dataplot$trt_color)
+cols <- cols[c(2, 3,1)]
 
 G2 <- ggplot() +
   geom_jitter(data = dataplot, aes(x = Timepoint_ID_num, y = log10_viral_load, col = Trt), 
               alpha = 0.2, size = 1.5, shape = 21,
               width = 0.15) +
-  scale_fill_manual(values = c("#005AB5", "#DC3220", "#F99417"), name = "") +
+  scale_fill_manual(values = cols, name = "") +
   geom_line(data = subset(dataplot3, Timepoint_ID_num <= 7), aes(x =  Timepoint_ID_num, y = Q2, group = Trt, col = Trt), linewidth = 1, linetype = 1) +
   geom_line(data = subset(dataplot3,  Timepoint_ID_num >= 7), aes(x =  Timepoint_ID_num, y = Q2, group = Trt, col = Trt), linewidth = 0.75, linetype = "dashed") +
   geom_point(data = dataplot3, aes(x = Timepoint_ID_num, y = Q2, fill = Trt), size = 3.5, shape = 24) +
-  scale_color_manual(values = c("#005AB5", "#DC3220", "#F99417"), name = "") +
+  scale_color_manual(values = cols, name = "") +
   theme_bw() +
   scale_x_continuous(breaks = 0:14) +
   scale_y_continuous(labels=label_math(), breaks = seq(0,8,2)) +
@@ -507,27 +509,13 @@ dev.off()
 ```{r}
 # 3. Individual half-life
 print(model_settings)
-load(ff[which(num == 1)])
+load(ff[which(num == 9)])
 
 slopes <- as.data.frame(-1*(summary(out, pars='slope',use_cache=F,probs=my_probs)$summary[,c('2.5%','10%','50%','90%','97.5%'),drop=F]))
 colnames(slopes) <- c("L95", "L80", "med", "U80", "U95")
 t_half <- (log10(2)/(slopes)*24)
 
 platcov_dat_analysis <- platcov_dat_analysis_list[[1]]
-
-# platcov_dat <- data_list[[1]]
-# 
-# platcov_dat_analysis = 
-#   platcov_dat %>% ungroup() %>%
-#   filter(Time <= Dmax, mITT) %>%
-#   arrange(log10_viral_load==log10_cens_vl) %>%
-#   mutate(Variant = as.factor(Variant),
-#          Site = as.factor(Site),
-#          RnaseP_scaled = scale(40 - CT_RNaseP,scale = F),
-#          Mean_age = mean(Age[!duplicated(ID)]),
-#          SD_age = sd(Age[!duplicated(ID)]),
-#          Age_scaled = (Age-Mean_age)/SD_age,
-#          Symptom_onset = ifelse(is.na(Symptom_onset),2,Symptom_onset)) 
 
 t_half <- cbind(t_half, unique(platcov_dat_analysis[,c("ID", "Trt")]))
 t_half <- as.data.frame(t_half)
@@ -539,15 +527,21 @@ t_half$Trt[t_half$Trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
 t_half$Trt <- as.factor(t_half$Trt)
 t_half$Trt <- factor(t_half$Trt, levels = c("Fluoxetine", "Nirmatrelvir", "No study drug"))
 
-med_t_half <- aggregate(list("med" = t_half$med), by = list("Trt" = t_half$Trt), median)
+med_t_half <- t_half %>%
+  group_by(Trt) %>%
+  summarise("Q2" = median(med),
+            "Q1" = quantile(med, 0.25),
+            "Q3" = quantile(med, 0.75)) %>%
+  as.data.frame()
+ 
 
 G3 <- ggplot(t_half, aes(x = i, y = med, col = Trt)) + geom_point() +
   theme_bw() +
   coord_flip(ylim=c(0, 50)) +
   scale_y_continuous(expand = c(0,0)) +
   geom_errorbar(aes(ymin = L80, ymax = U80), width = 0, alpha = 0.4) +
-  geom_hline(data = med_t_half, aes(yintercept = med, col = Trt, linetype = Trt), linewidth = 0.75) +
-  scale_color_manual(values = c("#005AB5", "#DC3220", "#F99417"), name = "") +
+  geom_hline(data = med_t_half, aes(yintercept = Q2, col = Trt, linetype = Trt), linewidth = 0.75) +
+  scale_color_manual(values = cols, name = "") +
   scale_linetype_manual(values = c("dashed","dashed", "dashed"), guide = "none") +
   ylab("Viral clearance half-life (hours)") +
   xlab("") +
@@ -558,12 +552,17 @@ G3 <- ggplot(t_half, aes(x = i, y = med, col = Trt)) + geom_point() +
     plot.title = element_text(face = "bold"),
     legend.position = "bottom") +
   ggtitle(paste0("Viral clearance half-life"))
+G3
 ```
 
 ```{r}
 png("Plots/Fig3_Fluoxetine_analysis_half_life_7d.png", width = 5, height = 5, units = "in", res = 350)
 G3
 dev.off()
+```
+
+```{r}
+data.frame("Trt" = med_t_half$Trt, round(med_t_half[,-1],1))
 ```
 
 # Traceplot
@@ -632,9 +631,14 @@ ID_map <- ID_map[order(ID_map$Trt, ID_map$ID_key),]
 
 ```{r}
 ind_plot_list <- list()
+resid_dat <- NULL
 for(i in 1:nrow(ID_map)){
   
   plot_data <- preds_dat %>% filter(ID_key == ID_map$ID_key[i])
+  plot_data$resid <- plot_data$log10_viral_load - plot_data$med
+  plot_data$Timepoint_ID <- round(plot_data$Time)
+  resid_dat <- rbind(resid_dat, plot_data)
+  
   lab <- paste0(plot_data$ID_key[1], "\n", plot_data$Trt[1])
   
   ind_plot_list[[i]] <- ggplot() +
@@ -676,6 +680,79 @@ dev.off()
   
   
 }
+```
+
+## Residuals analysis
+
+```{r}
+resid_plot <- ggplot(resid_dat[resid_dat$Timepoint_ID <= 7,], aes(x = as.factor(Timepoint_ID), y = resid)) +
+  geom_jitter(width = 0.2, alpha = 0.15, size = 2, aes(shape = censor, color = censor)) +
+  geom_boxplot(outlier.shape = NA, fill = "white", alpha = 0.85) +
+  theme_bw() +
+  facet_grid(model~ Trt) +
+  geom_hline(yintercept = 0, col = "red", linetype = "dashed") +
+  xlab("Time since randomisation (days)") +
+  ylab("Residuals") +
+  theme(
+    axis.title  = element_text(face = "bold", size = 12),
+    strip.text = element_text(face = "bold", size = 10),
+    legend.position = "bottom"
+) +
+  scale_shape_manual(values = c(17, 16), name = "Censor") +
+  scale_color_manual(values = rev(c("#38419D", "#BF3131")), name = "Censor")
+resid_plot 
+```
+
+```{r}
+png("Plots/residual_plot.png" , width = 8, height = 6, units = "in", res = 350)
+resid_plot
+dev.off()
+```
+
+```{r}
+med_data <- resid_dat %>% 
+  group_by(model, Timepoint_ID, Trt) %>%
+  summarise(Observed = median(log10_viral_load),
+            Predicted = median(med))
+
+med_data <- gather(med_data, key = "Type", value = "Value", Observed:Predicted, factor_key = T)
+
+med_data <- med_data[!(med_data$model == "Non-linear" & med_data$Type == "Observed"), ]
+
+med_data$Type2 <- paste0(med_data$model, med_data$Type)
+med_data$Type2 <- as.factor(med_data$Type2)
+levels(med_data$Type2) <- c("Observed", "Linear model", "Non-linear model")
+```
+
+```{r}
+med_pred_plot <- ggplot(med_data[med_data$Timepoint_ID <= 7,], aes(x = Timepoint_ID, y = Value, 
+                                                  col = Type2, shape = Type2,
+                                                  fill = Type2)) +
+  facet_grid(.~ Trt) +
+  geom_line(linewidth = 0.75, alpha = 0.75) +
+  geom_point(size = 3, alpha = 0.75, col = "black") +
+  theme_bw() +
+  xlab("Time since randomisation (days)") +
+  ylab("SARS-CoV-2 genomes/mL") + 
+  theme(
+    axis.title  = element_text(face = "bold", size = 12),
+    strip.text = element_text(face = "bold", size = 10),
+    legend.position = "bottom"
+) +
+  scale_x_continuous(breaks = 0:7) +
+  scale_y_continuous(labels=label_math(), breaks = seq(0,8,2), limits = c(-1,8)) +
+  scale_color_manual(values = c("#212A3E", "#004225", "#F99417"), name = NULL) +
+  scale_fill_manual(values = c("#212A3E", "#004225", "#F99417"), name = NULL) +
+  scale_shape_manual(values = c(21, 24, 24), name = NULL) +  
+  geom_hline(yintercept = 0, col = "red", linetype = "dashed")
+
+med_pred_plot
+```
+
+```{r}
+png("Plots/median_pred_obs_plot.png" , width = 8, height = 4, units = "in", res = 350)
+med_pred_plot
+dev.off()
 ```
 
 # Leave-one-out analysis

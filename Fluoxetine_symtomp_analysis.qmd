@@ -1,0 +1,144 @@
+---
+title: "Fluoxetine symtomp analysis PLATCOV"
+author: "James Watson"
+format: pdf
+editor: visual
+---
+
+```{r}
+knitr::opts_chunk$set(cache = T, cache.comments = FALSE,
+                      echo = F, include = TRUE, 
+                      fig.width = 8, fig.height = 8,
+                      fig.pos = 'H',dev = 'png', dpi = 300)
+
+```
+
+```{r}
+library(dplyr)
+library(survival)
+library(survminer)
+library(lubridate)
+library(stringr)
+
+source("functions.R")
+```
+
+sympt_dat\$temp_time
+
+```{r}
+platcov_dat = read.csv('Fluoxetine_analysis.csv')
+ID_map <- unique(platcov_dat[,c("ID", "Trt")])
+IDs <- ID_map$ID
+
+sympt_dat <- read.csv('Analysis_Data/symptom_data.csv')
+
+sympt_dat <- sympt_dat %>% filter(Label %in% IDs)
+sympt_dat <- merge(sympt_dat, ID_map, by.x = "Label", by.y = "ID")
+sympt_dat$Trt[sympt_dat$Trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
+```
+
+```{r}
+sympt_dat_for_plot <- sympt_dat
+
+sympt_dat_for_plot <- sympt_dat_for_plot[!is.na(sympt_dat_for_plot$sq_yn),]
+sympt_dat_for_plot$sq_yn <- as.logical(sympt_dat_for_plot$sq_yn)
+
+sympt_dat_for_plot$clearance_time = NA
+# For interval censored data, the status indicator is 0=right censored, 1=event at time, 2=left censored, 3=interval censored. 
+sympt_dat_for_plot$clearance_time_cens = 1
+window_clear <- 1
+
+sympt_dat_for_plot$Label2 <- as.numeric(as.factor(sympt_dat_for_plot$Label))
+############################################################################################
+never_list <- NULL
+
+for(id in 1:length(unique(sympt_dat_for_plot$Label2))){
+  ind = sympt_dat_for_plot$Label2==id
+  
+  if(all(!sympt_dat_for_plot$sq_yn[ind])){ # never symtomps
+    sympt_dat_for_plot$clearance_time[ind]=0
+    never_list <- c(never_list, id)
+  } else if(all(sympt_dat_for_plot$sq_yn[ind])){ # always symtomps
+    writeLines(sprintf('all symtomps for %s with %s FUP points',id,sum(ind)))
+    sympt_dat_for_plot$clearance_time[ind] = max(sympt_dat_for_plot$Timepoint_ID[ind])
+    sympt_dat_for_plot$clearance_time_cens[ind] = 0 #censored obs
+  } else { # symtomps cleared
+    j_cleared = which(ind & !sympt_dat_for_plot$sq_yn)
+    check_ahead=F
+    for(j in j_cleared){
+      if(!check_ahead){
+        ind_check = 
+          which(ind & 
+                  sympt_dat_for_plot$Timepoint_ID>sympt_dat_for_plot$Timepoint_ID[j] &
+                  sympt_dat_for_plot$Timepoint_ID<=sympt_dat_for_plot$Timepoint_ID[j+1])
+        if(length(ind_check)>0 & all(!sympt_dat_for_plot$sq_yn[ind_check])){
+          sympt_dat_for_plot$clearance_time[ind]=sympt_dat_for_plot$Timepoint_ID[j]
+          check_ahead=T
+        }
+      }
+    }
+    if(!check_ahead){
+      sympt_dat_for_plot$clearance_time[ind]=tail(sympt_dat_for_plot$Timepoint_ID[ind],1)
+      sympt_dat_for_plot$clearance_time_cens[ind]=0
+    }
+  }
+}
+```
+
+```{r}
+sympt_dat_for_plot2 <- sympt_dat_for_plot#[sympt_dat_for_plot$symtomps_Baseline == 1, ]
+sympt_dat_for_plot2 <- sympt_dat_for_plot2 %>%
+  group_by(Label) %>%
+  filter(row_number()==1)
+
+fit <- survfit(Surv(clearance_time, clearance_time_cens) ~ Trt, data = sympt_dat_for_plot2) 
+diff=survdiff(Surv(clearance_time, clearance_time_cens) ~ Trt, data = sympt_dat_for_plot2) 
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```
+
+```{r}
+round(prop.table(table(sympt_dat_for_plot2$Trt, sympt_dat_for_plot2$clearance_time), margin=1),2)
+
+round(prop.table(table(sympt_dat_for_plot2$Trt, sympt_dat_for_plot2$clearance_time_cens), margin=1),2)
+
+((table(sympt_dat_for_plot2$clearance_time_cens)))
+round(prop.table(table(sympt_dat_for_plot2$clearance_time_cens)),2)
+```
+
+```{r}
+trt_colors = get_trt_colors()
+cols <- trt_colors[c("Fluoxetine","Nirmatrelvir + Ritonavir", "No study drug")]
+cols <- as.character(cols)
+```
+
+```{r}
+survplot <- survminer::ggsurvplot(fit,pval=T,
+                                  risk.table = T,
+                                  risk.table.y.text=F,
+                                  palette = cols,
+                                  ggtheme = theme_bw(),
+                                  legend.labs = c("Fluoxetine", "Nirmatrelvir", "No study drug"),
+                                  break.time.by = 4,
+                                  pval.size = 4,
+                                  pval.coord = c(25,0.9),
+                                  size = 1.2,
+                                  alpha = 0.7) 
+survplot$plot <- survplot$plot + 
+  geom_hline(yintercept = c(0,1), linetype = "dashed", size = 0.6) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", col = "red", size = 0.6) +
+  xlab("symtomps clearance time (days)") +
+  ylab("Proportion of patients with symtomps") +
+  theme(axis.text=element_text(size=8),
+        axis.title=element_text(size=13,face="bold",),
+        strip.text = element_text(size = 10, face = "bold"),
+  )
+
+
+survplot
+```
+
+```{r}
+png("Plots/Symptom_surv_plot.png", width = 6, height = 6, units = "in", res = 350)
+survplot
+dev.off()
+```

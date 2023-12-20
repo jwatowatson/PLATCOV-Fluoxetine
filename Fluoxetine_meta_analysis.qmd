@@ -1,6 +1,6 @@
 ---
-title: "Favipiravir PLATCOV"
-author: "James Watson"
+title: "Fluoxetine meta-analysis PLATCOV"
+author: "James Watson and Phrutsamon Wongnak"
 format: pdf
 editor: visual
 ---
@@ -68,6 +68,14 @@ pop_table = platcov_dat %>% distinct(ID, .keep_all = T)
 table(Intervention=pop_table$Trt, `mITT population` = pop_table$mITT)
 ```
 
+```{r}
+platcov_dat$VariantClass_new <- as.character(platcov_dat$Variant)
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BA.5.2", "BA.5.5", "BQ.1")] <- "BA.5"
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BN.1.2", "BN.1.3", "CH.1.1")] <- "BA.2.75"
+platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("XBB1.5-like with F456L")] <- "XBB.1.5-like"
+platcov_dat$VariantClass_new <- as.factor(platcov_dat$VariantClass_new)
+```
+
 ## Baseline characteristics
 
 ```{r}
@@ -96,7 +104,7 @@ tab.ff <- Baseline_data %>% filter(mITT) %>%
   summary_factorlist(
     dependent = "Trt", # name of grouping / treatment variable
     explanatory = c("Site", "Age", 'Sex','BMI', "Weight", "Baseline.viral.load", 
-                    "Variant",'Symptom_onset','Vaccinated','Fever_Baseline'),
+                    "VariantClass_new",'Symptom_onset','Vaccinated','Fever_Baseline'),
     total_col = T, # add column with statistics for the whole sample
     add_row_total = F, # add column with number of valid cases
     include_row_missing_col = FALSE,
@@ -110,14 +118,6 @@ tab.ff <- Baseline_data %>% filter(mITT) %>%
   ) %>%
   kable_classic(full_width = FALSE)
 tab.ff
-```
-
-```{r}
-platcov_dat$VariantClass_new <- as.character(platcov_dat$Variant)
-platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BA.5.2", "BA.5.5", "BQ.1")] <- "BA.5"
-platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("BN.1.2", "BN.1.3", "CH.1.1")] <- "BA.2.75"
-platcov_dat$VariantClass_new[platcov_dat$VariantClass_new %in% c("XBB1.5-like with F456L")] <- "XBB.1.5-like"
-platcov_dat$VariantClass_new <- as.factor(platcov_dat$VariantClass_new)
 ```
 
 ## Fit models
@@ -238,12 +238,14 @@ source('functions.R')
 formatter <- function(x){ 
   (x-1)*100 
 }
+
+model_settings$i <- 1:nrow(model_settings)
+num <- as.numeric(str_extract(ff, "[0-9]+")) - 16 # subtract 16 to adjust the indice, because the results were run on the same batch with the main analysis
 ```
 
 ```{r}
 effect_ests <- list()
-model_settings$i <- 1:nrow(model_settings)
-num <- as.numeric(str_extract(ff, "[0-9]+")) - 16 # subtract 16 to adjust the indice, because the results were run on the same batch with the main analysis
+
 
 for(i in 1:length(num)){
   print(i)
@@ -290,7 +292,7 @@ levels(effect_fluoxetine_meta$Dmax) <- c("5 days", "7 days")
 colnames(effect_fluoxetine_meta)[1:5] <- c("L95", "L80", "med", "U80", "U95")
 row.names(effect_fluoxetine_meta) <- NULL
 
- effect_fluoxetine_meta$trt <- factor(effect_fluoxetine_meta$trt, levels = c("Ivermectin", "Favipiravir", "Fluoxetine", "Molnupiravir", "Remdesivir", "Nirmatrelvir"))
+ effect_fluoxetine_meta$trt <- factor(effect_fluoxetine_meta$trt, levels = c("Ivermectin", "Favipiravir", "Fluoxetine", "Remdesivir","Molnupiravir",  "Nirmatrelvir"))
 # levels(effect_fluoxetine_meta$trt)[6] <- "Nirmatrelvir"
 
 G1 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear",], aes(x = trt, y = med, col = Dmax)) +
@@ -313,23 +315,90 @@ G1 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear",], 
         legend.position = "bottom",
         plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), 
                            "inches")) +
-  ggtitle("Linear model")
+  ggtitle("B) Estimated treatment effects")
 
 G1
  # facet_wrap(.~model)
 ```
 
 ```{r}
-png("Plots/Fig4_Fluoxetine_meta_analysis.png", width = 6, height = 6, units = "in", res = 350)
-G1
+trt_colors = get_trt_colors()
+```
+
+```{r}
+dataplot <- platcov_dat
+#dataplot$Time
+
+dataplot$Trt <- as.character(dataplot$Trt)
+#dataplot$Trt[dataplot$Trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
+dataplot$Trt <- as.factor(dataplot$Trt)
+
+dataplot = 
+  dataplot %>% ungroup() %>%
+  filter(Timepoint_ID %in% c(0:7, 10, 14), mITT) %>%
+  arrange(log10_viral_load==log10_cens_vl) %>%
+  mutate(Variant = as.factor(Variant),
+         Site = as.factor(Site),
+         RnaseP_scaled = scale(40 - CT_RNaseP,scale = F),
+         Mean_age = mean(Age[!duplicated(ID)]),
+         SD_age = sd(Age[!duplicated(ID)]),
+         Age_scaled = (Age-Mean_age)/SD_age,
+         Symptom_onset = ifelse(is.na(Symptom_onset),2,Symptom_onset)) 
+
+dataplot$Timepoint_ID_num <- dataplot$Timepoint_ID
+
+dataplot2 <- aggregate(log10_viral_load~ID+Timepoint_ID+Timepoint_ID_num+Trt+Site+BMI+Plate+Age+Sex+Symptom_onset, 
+                       data = dataplot, FUN = median)
+
+dataplot3<- aggregate(log10_viral_load~Timepoint_ID+Timepoint_ID_num+Trt, data = dataplot, FUN = quantile, c(0.25, 0.5, 0.75))
+dataplot3[,4:6] <- as.data.frame(as.matrix(dataplot3[,4]))
+colnames(dataplot3)[4:6] <- c("Q1", "Q2", "Q3")
+
+cols <- trt_colors[levels(dataplot$Trt)]
+
+
+G2 <- ggplot() +
+  geom_jitter(data = dataplot, aes(x = Timepoint_ID_num, y = log10_viral_load, col = Trt), 
+              alpha = 0.15, size = 1, shape = 21,
+              width = 0.175) +
+  scale_fill_manual(values = cols, name = "") +
+  geom_line(data = subset(dataplot3, Timepoint_ID_num <= 7), aes(x =  Timepoint_ID_num, y = Q2, group = Trt, col = Trt), linewidth = 1, linetype = 1) +
+  geom_line(data = subset(dataplot3,  Timepoint_ID_num >= 7), aes(x =  Timepoint_ID_num, y = Q2, group = Trt, col = Trt), linewidth = 0.75, linetype = "dashed") +
+  geom_point(data = dataplot3, aes(x = Timepoint_ID_num, y = Q2, fill = Trt), size = 3, shape = 24, alpha = 0.9) +
+  scale_color_manual(values = cols, name = "") +
+  theme_bw() +
+  scale_x_continuous(breaks = 0:14, limits = c(0,14)) +
+  scale_y_continuous(labels=label_math(), breaks = seq(0,8,2)) +
+  xlab("Time since randomisation (days)") +
+  ylab("SARS-CoV-2 genomes/mL") + 
+  theme(axis.title  = element_text(face = "bold"),
+        plot.title = element_text(face = "bold"),
+        legend.position = "bottom",
+        axis.text = element_text(size = 10)) +
+  ggtitle("A) Viral load dynamics")
+
+G2   
+```
+
+```{r}
+# png("Plots/Fig4_Fluoxetine_meta_analysis.png", width = 6, height = 6, units = "in", res = 350)
+# G1
+# dev.off()
+G_combined <- ggarrange(G2, G1, align = "h")
+png("Plots/Figx_Fluoxetine_meta_analysis.png", width = 10, height = 6, units = "in", res = 350)
+G_combined
 dev.off()
 ```
 
 ```{r}
-writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s]",
-                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 9 & effect_fluoxetine_meta$trt == "Fluoxetine",]$med),2),
-                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 9 & effect_fluoxetine_meta$trt == "Fluoxetine",]$L95),2),
-                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 9 & effect_fluoxetine_meta$trt == "Fluoxetine",]$U95),2)
+
+drug <- "Fluoxetine"
+
+writeLines(sprintf("Effects of %s: %s [95CrI: %s - %s]",
+                   drug,
+                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 1 & effect_fluoxetine_meta$trt == drug,]$med),2),
+                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 1 & effect_fluoxetine_meta$trt == drug,]$L95),2),
+                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 1 & effect_fluoxetine_meta$trt == drug,]$U95),2)
 ))
 ```
 

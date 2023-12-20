@@ -1,0 +1,175 @@
+---
+title: "Fever and symptoms"
+author: "James Watson"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    toc: yes
+    fig_caption: yes
+    number_sections: yes
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = F, cache.comments = FALSE,
+                      echo = F, include = TRUE, 
+                      fig.width = 8, fig.height = 8,
+                      fig.pos = 'H',dev = 'png', dpi = 300)
+source('functions.R')
+```
+
+
+Does viral clearance correlate with fever clearance?
+
+
+load data 
+
+```{r}
+platcov_dat = read.csv('interim_dat.csv')
+temp_dat = read.csv('temperature_data.csv')
+sympt_dat = read.csv('symptom_data.csv')
+```
+
+
+Sustained fever clearance - calculate time to event (with right censoring)
+
+
+```{r}
+temp_clearance = calculate_fever_clearance(temp_dat = temp_dat,
+                                           window_clear = 25/24)
+temp_dat = dplyr::arrange(temp_dat, ID, Time)
+
+load('ID_list.RData')
+paper2_IDs = union(IDs_REGN, IDs_Remdesivir)
+temp_clearance_paper2 = temp_clearance[temp_clearance$ID %in% paper2_IDs, ]
+write.csv(x = temp_clearance_paper2,file = '../PLATCOV-Remdesivir-Regeneron/temperature_clearance.csv')
+
+pdf('temp_profiles_all.pdf', width = 10, height = 10)
+par(mfrow=c(4,4), las=1, mar=c(2,2,4,2))
+for(id in unique(temp_dat$ID)){
+  ind = temp_dat$ID==id
+  plot(temp_dat$Time[ind], temp_dat$temperature_ax[ind], xlim = c(0,8),
+       ylim = range(temp_dat$temperature_ax),pch=16, panel.first = grid(),
+       xlab='', ylab='', col = as.numeric(temp_dat$temperature_ax[ind]>37)+1,
+       cex=1.5)
+  title(id)
+  abline(v=temp_clearance$clearance_time[temp_clearance$ID==id],lty=2)
+}
+dev.off()
+
+
+```
+
+
+add daily viral loads
+
+```{r}
+vl_data = aggregate(log10_viral_load ~ ID + Timepoint_ID + Site + Trt + Rand_date,
+                    data = platcov_dat, mean)
+
+temp_dat = merge(vl_data, temp_dat, by =c('ID','Timepoint_ID'))
+sympt_dat = merge(vl_data, sympt_dat, by =c('ID','Timepoint_ID'))
+
+temp_dat_daily = aggregate(temperature_ax ~ ID + Timepoint_ID + log10_viral_load, 
+                           temp_dat, mean)
+
+par(mfrow=c(1,2), las=1, family='serif')
+ind_D0 = sympt_dat$Timepoint_ID==0
+plot(sympt_dat$heart_rate[ind_D0], sympt_dat$log10_viral_load[ind_D0],
+     xlab='Day 0 heart rate',
+     ylab='Log10 viral load',panel.first=grid())
+cor.test(sympt_dat$heart_rate[ind_D0], sympt_dat$log10_viral_load[ind_D0])
+mod = mgcv::gam(log10_viral_load ~ s(heart_rate),data = sympt_dat[ind_D0, ])
+lines(1:200, predict(mod, data.frame(heart_rate=1:200)),lwd=3)
+
+
+ind_D0 = temp_dat_daily$Timepoint_ID==0
+plot(temp_dat_daily$temperature_ax[ind_D0], temp_dat_daily$log10_viral_load[ind_D0],
+     xlab='Mean day 0 temperature',
+     ylab='Log10 viral load',panel.first=grid())
+cor.test(temp_dat_daily$temperature_ax[ind_D0], temp_dat_daily$log10_viral_load[ind_D0])
+mod = mgcv::gam(log10_viral_load ~ s(temperature_ax),data = temp_dat_daily[ind_D0, ])
+lines(36:39, predict(mod, data.frame(temperature_ax=36:39)),lwd=3)
+```
+
+
+# By site
+
+```{r fever_by_site}
+xx=aggregate(temperature_ax ~ Timepoint_ID + Site,
+             data = temp_dat[temp_dat$Timepoint_ID<10, ],
+             FUN = function(x) 100*mean(x>37))
+plot(xx$Timepoint_ID, xx$temperature_ax, xlab='Day', ylab = 'Proportion with fever (%)')
+
+mysites = unique(xx$Site)
+for(ss in 1:length(mysites)){
+  ind = xx$Site==mysites[ss]
+  lines(xx$Timepoint_ID[ind], xx$temperature_ax[ind], col=ss,lwd=3)
+}
+legend('topright', inset = 0.03, pch=1,legend = mysites,
+       col=1:length(mysites),lwd=2)
+```
+
+
+
+# Calculate endpoints
+
+
+```{r}
+# ind_fever_start = temp_clearance$clearance_time>0
+# temp_tte = temp_dat[!duplicated(temp_dat$ID)&ind_fever_start, ]
+# # unique(temp_tte$Trt)
+# 
+# temp_tte = dplyr::arrange(temp_tte, Trt, ID)
+# 
+# temp_tte$Trt = 
+#   factor(temp_tte$Trt, 
+#          levels=c('No study drug',
+#                   'Regeneron',
+#                   'Ivermectin',
+#                   'Molnupiravir',
+#                   'Nirmatrelvir + Ritonavir',
+#                   'Remdesivir',
+#                   'Fluoxetine',
+#                   'Favipiravir',
+#                   'Nitazoxanide'))
+# my_cols = RColorBrewer::brewer.pal(n = 9,name = 'Paired')
+# fever_clear_mod = 
+#   coxph(Surv(time = clearance_time, event = clearance_time_cens)~Trt, 
+#         data = temp_tte)
+# 
+# fever_clear_mod_KM = 
+#   survfit(Surv(time = clearance_time, event = clearance_time_cens)~Trt, 
+#         data = temp_tte)
+# 
+# summary(fever_clear_mod)
+# survminer::ggsurvplot(fever_clear_mod_KM)
+# plot(fever_clear_mod, col = my_cols, xlab = "Days", ylab = "Proprtion with fever")
+# legend('topright', legend = names(fever_clear_mod$strata), col=my_cols, lwd=2)
+```
+
+
+
+```{r}
+load('ID_list.RData')
+paper2_IDs = union(IDs_REGN, IDs_Remdesivir)
+temp_clearance_paper2 = temp_clearance[temp_clearance$ID %in% paper2_IDs, ]
+
+library(survival)
+
+fever_clear_mod_KM =
+  survfit(Surv(time = clearance_time, event = clearance_time_cens)~Trt,
+        data = temp_clearance_remdesivir)
+survminer::ggsurvplot(fever_clear_mod_KM,pval=T,risk.table = T,risk.table.y.text=F)
+
+fever_clear_mod_KM =
+  survfit(Surv(time = clearance_time, event = clearance_time_cens)~Trt,
+        data = temp_clearance_regeneron)
+survminer::ggsurvplot(fever_clear_mod_KM,pval=T,risk.table = T,risk.table.y.text=F)
+
+fever_clear_mod_KM =
+  survfit(Surv(time = clearance_time, event = clearance_time_cens)~Trt,
+        data = temp_clearance_favipiravir)
+survminer::ggsurvplot(fever_clear_mod_KM,pval=T,risk.table = T,risk.table.y.text=F)
+```
+

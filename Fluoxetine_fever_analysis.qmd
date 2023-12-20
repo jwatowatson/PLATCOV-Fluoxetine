@@ -1,0 +1,166 @@
+---
+title: "Fluoxetine temperature analysis PLATCOV"
+author: "James Watson"
+format: pdf
+editor: visual
+---
+
+```{r}
+knitr::opts_chunk$set(cache = T, cache.comments = FALSE,
+                      echo = F, include = TRUE, 
+                      fig.width = 8, fig.height = 8,
+                      fig.pos = 'H',dev = 'png', dpi = 300)
+
+```
+
+```{r}
+library(dplyr)
+library(survival)
+library(survminer)
+library(lubridate)
+library(stringr)
+
+source("functions.R")
+```
+
+temp_dat\$temp_time
+
+```{r}
+platcov_dat = read.csv('Fluoxetine_analysis.csv')
+
+IDs <- unique(platcov_dat$ID)
+
+temp_dat <- read.csv('Analysis_Data/temperature_data.csv')
+temp_dat <- temp_dat %>% filter(Label %in% IDs)
+temp_dat$temp_time <-  as.POSIXlt(temp_dat$temp_time, format = "%Y-%m-%d %H:%M:%OS")
+temp_dat <- temp_dat[temp_dat$Timepoint_ID <= 8,]
+temp_dat$rangrp[temp_dat$rangrp == "Nirmatrelvir/ritonavir"] <- "Nirmatrelvir"
+
+
+#manual imputation
+ ind_missing <- c(which(is.na(temp_dat$temp_time)))
+ temp_dat$temp_time[ind_missing] <- paste0(temp_dat$fut_dat[ind_missing], "10:00:00")
+
+year(temp_dat$temp_time[temp_dat$Label == "PLT-TH1-694"]) <- 2023
+day(temp_dat$temp_time[temp_dat$Label == "PLT-TH1-520" & temp_dat$visit == "D0"]) <- 26
+```
+
+```{r}
+temp_dat_for_plot <- temp_dat
+temp_dat_new <- NULL
+
+
+for(i in 1:length(IDs)){
+  subdat <- temp_dat_for_plot[temp_dat_for_plot$Label == IDs[i],]
+  if(nrow(subdat) == 0) next
+  
+  subdat$Time_adj <- as.numeric(difftime(subdat$temp_time , min(subdat$temp_time), unit = "days"))
+
+  subdat <- subdat[order(subdat$Time_adj),]
+  subdat <- subdat %>%
+                   group_by(Timepoint_ID) %>%
+                   mutate("temp_mean" = mean(fut_temp))
+  subdat <- subdat[unique(subdat$Timepoint_ID),]
+  
+  #print(c(i, max(subdat$Time_adj)))
+  #if(max(subdat$Time_adj) > 7*24){print(i)}
+  
+  temp_dat_new <- rbind(temp_dat_new, subdat)
+}
+```
+
+```{r}
+temp_dat_for_plot <- temp_dat_new
+threshold <- 37
+temp_dat_for_plot$fever_binary <- temp_dat_for_plot$fut_temp > threshold
+
+temp_dat_for_plot$Label2 <- as.numeric(as.factor(temp_dat_for_plot$Label))
+IDs_inc <- unique(temp_dat_for_plot$Label2)
+temp_dat_for_plot$temp_time <- as.POSIXlt(temp_dat_for_plot$temp_time)
+
+temp_dat_for_plot$clearance_time = NA
+# For interval censored data, the status indicator is 0=right censored, 1=event at time, 2=left censored, 3=interval censored. 
+temp_dat_for_plot$clearance_time_cens = 1
+window_clear <- 1
+############################################################################################
+for(id in IDs_inc){
+  ind = temp_dat_for_plot$Label2==id
+  
+  if(all(!temp_dat_for_plot$fever_binary[ind])){ # never fever
+    temp_dat_for_plot$clearance_time[ind]=0
+  } else if(all(temp_dat_for_plot$fever_binary[ind])){ # always fever
+    writeLines(sprintf('all fever for %s with %s FUP points',id,sum(ind)))
+    temp_dat_for_plot$clearance_time[ind] = max(temp_dat_for_plot$Time_adj[ind])
+    temp_dat_for_plot$clearance_time_cens[ind] = 0 #censored obs
+  } else { # fever cleared
+    j_cleared = which(ind & !temp_dat_for_plot$fever_binary)
+    check_ahead=F
+    for(j in j_cleared){
+      if(!check_ahead){
+        ind_check = 
+          which(ind & 
+                  temp_dat_for_plot$Time_adj>temp_dat_for_plot$Time_adj[j] &
+                  temp_dat_for_plot$Time_adj<temp_dat_for_plot$Time_adj[j] + window_clear)
+        if(length(ind_check)>0 & all(!temp_dat_for_plot$fever_binary[ind_check])){
+          temp_dat_for_plot$clearance_time[ind]=temp_dat_for_plot$Time_adj[j]
+          check_ahead=T
+        }
+      }
+    }
+    if(!check_ahead){
+      temp_dat_for_plot$clearance_time[ind]=tail(temp_dat_for_plot$Time_adj[ind],1)
+      temp_dat_for_plot$clearance_time_cens[ind]=0
+    }
+  }
+}
+```
+
+```{r}
+temp_dat_for_plot2 <- temp_dat_for_plot[temp_dat_for_plot$Fever_Baseline == 1, ]
+temp_dat_for_plot2 <- temp_dat_for_plot2 %>%
+  group_by(Label) %>%
+  filter(row_number()==1)
+
+fit <- survfit(Surv(clearance_time, clearance_time_cens) ~ rangrp, data = temp_dat_for_plot2) 
+diff=survdiff(Surv(clearance_time, clearance_time_cens) ~ rangrp, data = temp_dat_for_plot2) 
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```
+
+```{r}
+trt_colors = get_trt_colors()
+cols <- trt_colors[c("Fluoxetine","Nirmatrelvir + Ritonavir", "No study drug")]
+cols <- as.character(cols)
+```
+
+```{r}
+survplot <- survminer::ggsurvplot(fit,pval=T,
+                                  risk.table = T,
+                                  risk.table.y.text=F,
+                                  palette = cols,
+                                  ggtheme = theme_bw(),
+                                  legend.labs = c("Fluoxetine", "Nirmatrelvir", "No study drug"),
+                                  break.time.by = 1,
+                                  pval.size = 4,
+                                  pval.coord = c(5,0.9),
+                                  size = 1.2,
+                                  alpha = 0.7,
+                                  xlim = c(0,7)) 
+survplot$plot <- survplot$plot + 
+  geom_hline(yintercept = c(0,1), linetype = "dashed", size = 0.6) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", col = "red", size = 0.6) +
+  xlab("Fever clearance time (days)") +
+  ylab("Proportion of patients with fever") +
+  theme(axis.text=element_text(size=8),
+        axis.title=element_text(size=13,face="bold",),
+        strip.text = element_text(size = 10, face = "bold"),
+  ) 
+
+
+survplot
+```
+
+```{r}
+png("Plots/Temp_surv_plot.png", width = 6, height = 6, units = "in", res = 350)
+survplot
+dev.off()
+```
