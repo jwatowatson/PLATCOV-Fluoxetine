@@ -292,19 +292,20 @@ levels(effect_fluoxetine_meta$Dmax) <- c("5 days", "7 days")
 colnames(effect_fluoxetine_meta)[1:5] <- c("L95", "L80", "med", "U80", "U95")
 row.names(effect_fluoxetine_meta) <- NULL
 
- effect_fluoxetine_meta$trt <- factor(effect_fluoxetine_meta$trt, levels = c("Ivermectin", "Favipiravir", "Fluoxetine", "Remdesivir","Molnupiravir",  "Nirmatrelvir"))
-# levels(effect_fluoxetine_meta$trt)[6] <- "Nirmatrelvir"
+ effect_fluoxetine_meta$trt <- factor(effect_fluoxetine_meta$trt, levels = c("Ivermectin", "Favipiravir", "Fluoxetine", "Regeneron",  "Remdesivir","Molnupiravir",  "Nirmatrelvir"))
+ levels(effect_fluoxetine_meta$trt)[4] <- "Casirivimab/imdevimab"
+ levels(effect_fluoxetine_meta$trt)[7] <- "Ritonavir-boosted nirmatrelvir"
 
 G1 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear",], aes(x = trt, y = med, col = Dmax)) +
   geom_point(position = position_dodge(width = 0.5), size = 3) +
-  geom_rect(aes(ymin = 0.6, ymax = 1.2, xmin = 0, xmax = 7), fill = "gray", alpha = 0.05, col = NA) +
+  geom_rect(aes(ymin = 0.6, ymax = 1.2, xmin = 0, xmax = 8), fill = "gray", alpha = 0.05, col = NA) +
   theme_bw() +
   coord_flip() +
   geom_errorbar(aes(ymin = L95, ymax = U95), width = 0, position = position_dodge(width = 0.5)) +
   geom_errorbar(aes(x = trt, ymin = L80, ymax = U80),position = position_dodge(width = 0.5), width = 0, linewidth = 1) +
   geom_point(position = position_dodge(width = 0.5), size = 3) +
   geom_hline(yintercept = 1, col = "red", linetype = "dashed") +
-  scale_color_manual(values =  c("#004225", "#F99417"), name = "Follow-up duration") +
+  scale_color_manual(values =  c("#004225", "#F99417"), name = "Post-treatment assessment duration") +
   scale_shape_manual(values = c(16,17), name = "Model", guide = "none") +
   scale_y_continuous(labels = formatter, limits = c(0.6, 2.8), expand = c(0,0),
                      breaks = seq(0.8,2.8,0.2)) +
@@ -319,6 +320,28 @@ G1 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear",], 
 
 G1
  # facet_wrap(.~model)
+```
+
+```{r}
+#main model 7 days with linear model # 9
+load(ff[which(num == 9)])
+effects <- (rstan::extract(out, par = 'trt_effect'))[[1]] %>% as.data.frame()
+
+  dat <- platcov_dat_analysis_list[1:2][model_settings$dataset[9]][[1]]
+  
+  intervention = model_settings$intervention[9] # prefix of analysis file
+  ref_arm = "No study drug" # model_settings$ref_arm[i]
+  trt_intervention = unique(dat$Trt)
+  trts = trt_intervention[trt_intervention!=ref_arm] # get interventions
+  colnames(effects) <- trts
+  
+for(i in 1:length(trts)){
+ writeLines(sprintf("Probability of treatment effect of fluoxetine less treatment effect of %s is %s",
+    trts[i],
+    mean(effects$Fluoxetine < effects[,i])
+))
+}
+  
 ```
 
 ```{r}
@@ -347,6 +370,17 @@ dataplot =
 
 dataplot$Timepoint_ID_num <- dataplot$Timepoint_ID
 
+cols <- trt_colors[levels(dataplot$Trt)]
+
+dataplot$Trt <- factor(dataplot$Trt, levels = c("No study drug", "Ivermectin", "Favipiravir", "Fluoxetine", "Regeneron",  "Remdesivir","Molnupiravir",  "Nirmatrelvir"))
+ levels(dataplot$Trt)[5] <- "Casirivimab/imdevimab"
+ levels(dataplot$Trt)[8] <- "Ritonavir-boosted nirmatrelvir"
+
+cols <- cols[c("No study drug", "Ivermectin", "Favipiravir", "Fluoxetine", "Regeneron",  "Remdesivir","Molnupiravir",  "Nirmatrelvir")]
+names(cols)[5] <- "Casirivimab/imdevimab"
+names(cols)[5] <- "Ritonavir-boosted nirmatrelvir"
+
+
 dataplot2 <- aggregate(log10_viral_load~ID+Timepoint_ID+Timepoint_ID_num+Trt+Site+BMI+Plate+Age+Sex+Symptom_onset, 
                        data = dataplot, FUN = median)
 
@@ -354,7 +388,6 @@ dataplot3<- aggregate(log10_viral_load~Timepoint_ID+Timepoint_ID_num+Trt, data =
 dataplot3[,4:6] <- as.data.frame(as.matrix(dataplot3[,4]))
 colnames(dataplot3)[4:6] <- c("Q1", "Q2", "Q3")
 
-cols <- trt_colors[levels(dataplot$Trt)]
 
 
 G2 <- ggplot() +
@@ -385,21 +418,29 @@ G2
 # G1
 # dev.off()
 G_combined <- ggarrange(G2, G1, align = "h")
-png("Plots/Figx_Fluoxetine_meta_analysis.png", width = 10, height = 6, units = "in", res = 350)
+png("Plots/Figx_Fluoxetine_meta_analysis.png", width = 12, height = 6, units = "in", res = 350)
 G_combined
 dev.off()
 ```
 
 ```{r}
 
-drug <- "Fluoxetine"
+for(d in c("5 days", "7 days")){
+print(d)
+for(j in c("Ivermectin", "Favipiravir", "Fluoxetine", "Casirivimab/imdevimab",  "Remdesivir","Molnupiravir",  "Ritonavir-boosted nirmatrelvir")){
+
+drug <- j
+
+if(d == "5 days"){ii <- 1} else {ii <- 9}
 
 writeLines(sprintf("Effects of %s: %s [95CrI: %s - %s]",
                    drug,
-                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 1 & effect_fluoxetine_meta$trt == drug,]$med),2),
-                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 1 & effect_fluoxetine_meta$trt == drug,]$L95),2),
-                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == 1 & effect_fluoxetine_meta$trt == drug,]$U95),2)
+                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == ii & effect_fluoxetine_meta$trt == drug,]$med),2),
+                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == ii & effect_fluoxetine_meta$trt == drug,]$L95),2),
+                   round(formatter(effect_fluoxetine_meta[effect_fluoxetine_meta$i == ii & effect_fluoxetine_meta$trt == drug,]$U95),2)
 ))
+}
+}
 ```
 
 timeline_dat\$Rand_date
@@ -413,7 +454,9 @@ timeline_dat$mITT_fluoxetine <- as.factor(as.numeric(timeline_dat$ID %in% mITT_I
 
 levels(timeline_dat$mITT_fluoxetine) <- c("No", "Yes")
 
-timeline_dat$Trt <- factor(timeline_dat$Trt, levels = (c("Ivermectin", "Remdesivir", "Favipiravir", "Molnupiravir", "Nirmatrelvir", "Fluoxetine", "No study drug")  ))
+timeline_dat$Trt <- factor(timeline_dat$Trt, levels = (c("Ivermectin", "Remdesivir", "Regeneron", "Favipiravir", "Molnupiravir", "Nirmatrelvir", "Fluoxetine", "No study drug")  ))
+ levels(timeline_dat$Trt)[3] <- "Casirivimab/imdevimab"
+ levels(timeline_dat$Trt)[6] <- "Ritonavir-boosted nirmatrelvir"
 
 timeline_dat$Rand_date <- as.Date(timeline_dat$Rand_date)
 

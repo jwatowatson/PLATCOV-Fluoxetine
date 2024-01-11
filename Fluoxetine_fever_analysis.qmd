@@ -34,7 +34,7 @@ temp_dat <- read.csv('Analysis_Data/temperature_data.csv')
 temp_dat <- temp_dat %>% filter(Label %in% IDs)
 temp_dat$temp_time <-  as.POSIXlt(temp_dat$temp_time, format = "%Y-%m-%d %H:%M:%OS")
 temp_dat <- temp_dat[temp_dat$Timepoint_ID <= 8,]
-temp_dat$rangrp[temp_dat$rangrp == "Nirmatrelvir/ritonavir"] <- "Nirmatrelvir"
+#temp_dat$rangrp[temp_dat$rangrp == "Nirmatrelvir/ritonavir"] <- "Nirmatrelvir"
 
 
 #manual imputation
@@ -128,7 +128,9 @@ pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
 
 ```{r}
 trt_colors = get_trt_colors()
-cols <- trt_colors[c("Fluoxetine","Nirmatrelvir + Ritonavir", "No study drug")]
+cols <- trt_colors[c("Fluoxetine",
+                     #"Nirmatrelvir + Ritonavir", 
+                     "No study drug")]
 cols <- as.character(cols)
 ```
 
@@ -138,7 +140,9 @@ survplot <- survminer::ggsurvplot(fit,pval=T,
                                   risk.table.y.text=F,
                                   palette = cols,
                                   ggtheme = theme_bw(),
-                                  legend.labs = c("Fluoxetine", "Nirmatrelvir", "No study drug"),
+                                  legend.labs = c("Fluoxetine", 
+                                                  #"Nirmatrelvir", 
+                                                  "No study drug"),
                                   break.time.by = 1,
                                   pval.size = 4,
                                   pval.coord = c(5,0.9),

@@ -231,7 +231,7 @@ if(!length(ff)==nrow(model_settings)) stop('not all outputs are ready for all mo
 ff = paste0('Rout/',ff)
 ```
 
-main model selection
+# Main model selection
 
 ```{r}
 main_mod = which(model_settings$prior==1&
@@ -307,15 +307,16 @@ writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
 
 
 eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
-eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+#eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
 
-writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s]", 
+                  # \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
                    round(eff_flx[1], 2),
                    round(eff_flx[2], 2),
-                   round(eff_flx[3], 2),
-                   round(eff_nir[1], 2),
-                   round(eff_nir[2], 2),
-                   round(eff_nir[3], 2)
+                   round(eff_flx[3], 2)#,
+                  # round(eff_nir[1], 2),
+                  # round(eff_nir[2], 2),
+                  # round(eff_nir[3], 2)
 ))
 ```
 
@@ -330,15 +331,16 @@ writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
 
 
 eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
-eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+#eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
 
-writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s]", 
+                  # \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
                    round(eff_flx[1], 2),
                    round(eff_flx[2], 2),
-                   round(eff_flx[3], 2),
-                   round(eff_nir[1], 2),
-                   round(eff_nir[2], 2),
-                   round(eff_nir[3], 2)
+                   round(eff_flx[3], 2)#,
+                  # round(eff_nir[1], 2),
+                  # round(eff_nir[2], 2),
+                  # round(eff_nir[3], 2)
 ))
 ```
 
@@ -355,15 +357,16 @@ writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
 
 
 eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
-eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+#eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
 
-writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s]", 
+                  # \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
                    round(eff_flx[1], 2),
                    round(eff_flx[2], 2),
-                   round(eff_flx[3], 2),
-                   round(eff_nir[1], 2),
-                   round(eff_nir[2], 2),
-                   round(eff_nir[3], 2)
+                   round(eff_flx[3], 2)#,
+                  # round(eff_nir[1], 2),
+                  # round(eff_nir[2], 2),
+                  # round(eff_nir[3], 2)
 ))
 ```
 
@@ -378,15 +381,16 @@ writeLines(sprintf("Probability of treatment effect less than 1.2 is %s",
 
 
 eff_flx <- quantile(formatter(exp(effects$trt_effect[,1])), c(0.5, 0.025, 0.975))
-eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
+#eff_nir <- quantile(formatter(exp(effects$trt_effect[,2])), c(0.5, 0.025, 0.975))
 
-writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s] \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
+writeLines(sprintf("Effects of fluoxetine: %s [95CrI: %s - %s]", 
+                  # \nEffects of nirmatrelvir: %s [95CrI: %s - %s]",
                    round(eff_flx[1], 2),
                    round(eff_flx[2], 2),
-                   round(eff_flx[3], 2),
-                   round(eff_nir[1], 2),
-                   round(eff_nir[2], 2),
-                   round(eff_nir[3], 2)
+                   round(eff_flx[3], 2)#,
+                  # round(eff_nir[1], 2),
+                  # round(eff_nir[2], 2),
+                  # round(eff_nir[3], 2)
 ))
 ```
 
@@ -408,22 +412,22 @@ levels(effect_fluoxetine$Dmax) <- c("5 days", "7 days")
 colnames(effect_fluoxetine)[1:5] <- c("L95", "L80", "med", "U80", "U95")
 
 effect_fluoxetine$trt <- as.character(effect_fluoxetine$trt)
-effect_fluoxetine$trt[effect_fluoxetine$trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
+# effect_fluoxetine$trt[effect_fluoxetine$trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
 effect_fluoxetine$trt <- as.factor(effect_fluoxetine$trt)
 
 G1 <- ggplot(effect_fluoxetine, 
        aes(x = trt, y = med, col = Dmax, shape = model)) +
-  geom_point(position = position_dodge(width = 0.5), size = 4) +
-  geom_errorbar(aes(x = trt, ymin = L95, ymax = U95),position = position_dodge(width = 0.5), width = 0, linewidth = 0.65) +
-  geom_errorbar(aes(x = trt, ymin = L80, ymax = U80),position = position_dodge(width = 0.5), width = 0, linewidth = 1.5) +
-  geom_rect(aes(ymin = 0.9, ymax = 1.2, xmin = 0, xmax = 3), fill = "#7D7C7C", alpha = 0.05, col = NA) +
+  geom_point(position = position_dodge(width = 0.75), size = 4) +
+  geom_errorbar(aes(x = trt, ymin = L95, ymax = U95),position = position_dodge(width = 0.75), width = 0, linewidth = 0.65) +
+  geom_errorbar(aes(x = trt, ymin = L80, ymax = U80),position = position_dodge(width = 0.75), width = 0, linewidth = 1.5) +
+  geom_rect(aes(ymin = 0.9, ymax = 1.2, xmin = 0, xmax = 2), fill = "#7D7C7C", alpha = 0.05, col = NA) +
   facet_grid(model~., scales = "free") +
   coord_flip() +
   theme_bw() +
   geom_hline(yintercept = 1, col = "red", linetype = "dashed") +
-  scale_color_manual(values = c("#004225", "#F99417"), name = "Follow-up duration") +
+  scale_color_manual(values = c("#004225", "#F99417"), name = "Post-treatment assessment duration") +
   scale_shape_manual(values = c(16,17), name = "Model", guide = "none") +
-  scale_y_continuous(labels = formatter, limits = c(0.9, 2.8), expand = c(0,0)) +
+  scale_y_continuous(labels = formatter, limits = c(0.9, 1.6), expand = c(0,0)) +
   ylab("Change in viral clearance rate (%)") +
   xlab("") +
   ggtitle("B) Estimated treatment effects")  + 
@@ -443,7 +447,7 @@ dataplot <- platcov_dat
 dataplot$Time
 
 dataplot$Trt <- as.character(dataplot$Trt)
-dataplot$Trt[dataplot$Trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
+#dataplot$Trt[dataplot$Trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
 dataplot$Trt <- as.factor(dataplot$Trt)
 
 
@@ -470,7 +474,7 @@ dataplot3[,4:6] <- as.data.frame(as.matrix(dataplot3[,4]))
 colnames(dataplot3)[4:6] <- c("Q1", "Q2", "Q3")
 
 cols <- unique(dataplot$trt_color)
-cols <- cols[c(2, 3,1)]
+cols <- cols[c(2,1)]
 
 G2 <- ggplot() +
   geom_jitter(data = dataplot, aes(x = Timepoint_ID_num, y = log10_viral_load, col = Trt), 
@@ -523,9 +527,11 @@ t_half <- t_half[order(t_half$Trt, t_half$med),]
 t_half$i <- 1:nrow(t_half)
 
 t_half$Trt <- as.character(t_half$Trt)
-t_half$Trt[t_half$Trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
+#t_half$Trt[t_half$Trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
 t_half$Trt <- as.factor(t_half$Trt)
-t_half$Trt <- factor(t_half$Trt, levels = c("Fluoxetine", "Nirmatrelvir", "No study drug"))
+t_half$Trt <- factor(t_half$Trt, levels = c("Fluoxetine", 
+                                            #"Nirmatrelvir", 
+                                            "No study drug"))
 
 med_t_half <- t_half %>%
   group_by(Trt) %>%

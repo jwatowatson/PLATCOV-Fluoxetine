@@ -1,5 +1,5 @@
 ---
-title: "Fluoxetine symtomp analysis PLATCOV"
+title: "Fluoxetine symptom analysis PLATCOV"
 author: "James Watson"
 format: pdf
 editor: visual
@@ -55,14 +55,14 @@ never_list <- NULL
 for(id in 1:length(unique(sympt_dat_for_plot$Label2))){
   ind = sympt_dat_for_plot$Label2==id
   
-  if(all(!sympt_dat_for_plot$sq_yn[ind])){ # never symtomps
+  if(all(!sympt_dat_for_plot$sq_yn[ind])){ # never symptoms
     sympt_dat_for_plot$clearance_time[ind]=0
     never_list <- c(never_list, id)
-  } else if(all(sympt_dat_for_plot$sq_yn[ind])){ # always symtomps
-    writeLines(sprintf('all symtomps for %s with %s FUP points',id,sum(ind)))
+  } else if(all(sympt_dat_for_plot$sq_yn[ind])){ # always symptoms
+    writeLines(sprintf('all symptoms for %s with %s FUP points',id,sum(ind)))
     sympt_dat_for_plot$clearance_time[ind] = max(sympt_dat_for_plot$Timepoint_ID[ind])
     sympt_dat_for_plot$clearance_time_cens[ind] = 0 #censored obs
-  } else { # symtomps cleared
+  } else { # symptoms cleared
     j_cleared = which(ind & !sympt_dat_for_plot$sq_yn)
     check_ahead=F
     for(j in j_cleared){
@@ -86,7 +86,7 @@ for(id in 1:length(unique(sympt_dat_for_plot$Label2))){
 ```
 
 ```{r}
-sympt_dat_for_plot2 <- sympt_dat_for_plot#[sympt_dat_for_plot$symtomps_Baseline == 1, ]
+sympt_dat_for_plot2 <- sympt_dat_for_plot#[sympt_dat_for_plot$symptoms_Baseline == 1, ]
 sympt_dat_for_plot2 <- sympt_dat_for_plot2 %>%
   group_by(Label) %>%
   filter(row_number()==1)
@@ -107,7 +107,9 @@ round(prop.table(table(sympt_dat_for_plot2$clearance_time_cens)),2)
 
 ```{r}
 trt_colors = get_trt_colors()
-cols <- trt_colors[c("Fluoxetine","Nirmatrelvir + Ritonavir", "No study drug")]
+cols <- trt_colors[c("Fluoxetine",
+                     #"Nirmatrelvir + Ritonavir", 
+                     "No study drug")]
 cols <- as.character(cols)
 ```
 
@@ -117,7 +119,9 @@ survplot <- survminer::ggsurvplot(fit,pval=T,
                                   risk.table.y.text=F,
                                   palette = cols,
                                   ggtheme = theme_bw(),
-                                  legend.labs = c("Fluoxetine", "Nirmatrelvir", "No study drug"),
+                                  legend.labs = c("Fluoxetine", 
+                                                  #"Nirmatrelvir", 
+                                                  "No study drug"),
                                   break.time.by = 4,
                                   pval.size = 4,
                                   pval.coord = c(25,0.9),
@@ -126,8 +130,8 @@ survplot <- survminer::ggsurvplot(fit,pval=T,
 survplot$plot <- survplot$plot + 
   geom_hline(yintercept = c(0,1), linetype = "dashed", size = 0.6) +
   geom_hline(yintercept = 0.5, linetype = "dashed", col = "red", size = 0.6) +
-  xlab("symtomps clearance time (days)") +
-  ylab("Proportion of patients with symtomps") +
+  xlab("symptoms clearance time (days)") +
+  ylab("Proportion of patients with symptoms") +
   theme(axis.text=element_text(size=8),
         axis.title=element_text(size=13,face="bold",),
         strip.text = element_text(size = 10, face = "bold"),
