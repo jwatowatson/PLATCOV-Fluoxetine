@@ -6,3 +6,4 @@ The analyses were described in the following qmd files:
 3. Fluoxetine_fever_analysis.qmd - Analysis of time to fever clearannce
 4. Fluoxetine_symptom_analysis.qmd - Analysis of time to symptom clearannce
 
+The Statistical Analysis Plan version 3.1 can be accessed in the "Analysis Plan" folder. 
