@@ -454,7 +454,7 @@ dataplot$Trt <- as.factor(dataplot$Trt)
 
 dataplot = 
   dataplot %>% ungroup() %>%
-  filter(Timepoint_ID %in% c(0:7, 10, 14), mITT) %>%
+  filter(Timepoint_ID %in% c(0:7), mITT) %>%
   arrange(log10_viral_load==log10_cens_vl) %>%
   mutate(Variant = as.factor(Variant),
          Site = as.factor(Site),
@@ -476,6 +476,18 @@ colnames(dataplot3)[4:6] <- c("Q1", "Q2", "Q3")
 cols <- unique(dataplot$trt_color)
 cols <- cols[c(2,1)]
 
+
+BLOQ <- dataplot %>%
+  group_by(Timepoint_ID, Trt) %>%
+  summarise(
+    total = n(),
+    BLOQ = sum(censor == "left"),
+    percentage_BLOQ= (BLOQ / total) * 100
+  ) 
+
+BLOQ$lab <- paste0(round(BLOQ$percentage_BLOQ,1), "%")
+
+
 G2 <- ggplot() +
   geom_jitter(data = dataplot, aes(x = Timepoint_ID_num, y = log10_viral_load, col = Trt), 
               alpha = 0.2, size = 1.5, shape = 21,
@@ -487,16 +499,20 @@ G2 <- ggplot() +
   scale_color_manual(values = cols, name = "") +
   theme_bw() +
   scale_x_continuous(breaks = 0:14) +
-  scale_y_continuous(labels=label_math(), breaks = seq(0,8,2)) +
+  scale_y_continuous(labels=label_math(), breaks = seq(-2,8,2), limits = c(-1.8,9)) +
   xlab("Time since randomisation (days)") +
   ylab("SARS-CoV-2 genomes/mL") + 
   theme(axis.title  = element_text(face = "bold"),
         plot.title = element_text(face = "bold"),
         legend.position = "bottom",
         axis.text = element_text(size = 10)) +
-  ggtitle("A) Viral load dynamics")
+  ggtitle("A) Viral load dynamics") +
+  annotate(geom = "text", x = 0, y = 0, label = "NSD:", hjust = 0.5,vjust = 1, size = 3) +
+  geom_text(data = BLOQ %>% filter(Trt == "No study drug"), aes(label = lab, x = Timepoint_ID), y = -0.5, vjust = 1, size = 3) +
+  annotate(geom = "text", x = 0, y = -1.2, label = "FLX:", hjust = 0.5,vjust = 1, size = 3) +
+  geom_text(data = BLOQ %>% filter(Trt == "Fluoxetine"), aes(label = lab, x = Timepoint_ID), y = -1.7, vjust = 1, size = 3)
 
-G2   
+G2
 
 ```
 
@@ -540,6 +556,10 @@ med_t_half <- t_half %>%
             "Q3" = quantile(med, 0.75)) %>%
   as.data.frame()
  
+med_t_half$lab <- paste0(med_t_half$Trt, ": ",
+                         round(med_t_half$Q2,1), "h [IQR: ",
+                         round(med_t_half$Q1,1), "; ",
+                         round(med_t_half$Q3,1), "h]")
 
 G3 <- ggplot(t_half, aes(x = i, y = med, col = Trt)) + geom_point() +
   theme_bw() +
@@ -550,14 +570,17 @@ G3 <- ggplot(t_half, aes(x = i, y = med, col = Trt)) + geom_point() +
   scale_color_manual(values = cols, name = "") +
   scale_linetype_manual(values = c("dashed","dashed", "dashed"), guide = "none") +
   ylab("Viral clearance half-life (hours)") +
-  xlab("") +
+  xlab("Patient ID") +
   theme(
-    axis.text.y = element_blank(),
+    #axis.text.y = element_blank(),
     axis.ticks.y = element_blank(),
     axis.title  = element_text(face = "bold"),
     plot.title = element_text(face = "bold"),
     legend.position = "bottom") +
-  ggtitle(paste0("Viral clearance half-life"))
+  ggtitle(paste0("Viral clearance half-life")) +
+  annotate(geom = "text", x = 20, y = 20, label = c(med_t_half$lab[1]), hjust = 0, size = 3.5) +
+  annotate(geom = "text", x = 40, y = 20, label = c(med_t_half$lab[2]), hjust = 0, size = 3.5) 
+
 G3
 ```
 

@@ -293,8 +293,21 @@ colnames(effect_fluoxetine_meta)[1:5] <- c("L95", "L80", "med", "U80", "U95")
 row.names(effect_fluoxetine_meta) <- NULL
 
  effect_fluoxetine_meta$trt <- factor(effect_fluoxetine_meta$trt, levels = c("Ivermectin", "Favipiravir", "Fluoxetine", "Regeneron",  "Remdesivir","Molnupiravir",  "Nirmatrelvir"))
+ 
+ tab <- table(Intervention=pop_table$Trt, `mITT population` = pop_table$mITT)[,2]
+
+ 
+labs <- data.frame("Trt" = levels(effect_fluoxetine_meta$trt), 
+                   "n" =  tab[levels(effect_fluoxetine_meta$trt)]
+) 
+ 
+labs$lab = paste0("(n =", labs$n, ")")
+
  levels(effect_fluoxetine_meta$trt)[4] <- "Casirivimab/imdevimab"
  levels(effect_fluoxetine_meta$trt)[7] <- "Ritonavir-boosted nirmatrelvir"
+
+levels(effect_fluoxetine_meta$trt) <- paste0(levels(effect_fluoxetine_meta$trt),
+                                             "\n", labs$lab) 
 
 G1 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear",], aes(x = trt, y = med, col = Dmax)) +
   geom_point(position = position_dodge(width = 0.5), size = 3) +
@@ -316,7 +329,7 @@ G1 <- ggplot(effect_fluoxetine_meta[effect_fluoxetine_meta$model == "Linear",], 
         legend.position = "bottom",
         plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), 
                            "inches")) +
-  ggtitle("B) Estimated treatment effects")
+  ggtitle("Estimated treatment effects")
 
 G1
  # facet_wrap(.~model)
@@ -414,13 +427,13 @@ G2
 ```
 
 ```{r}
-# png("Plots/Fig4_Fluoxetine_meta_analysis.png", width = 6, height = 6, units = "in", res = 350)
-# G1
-# dev.off()
-G_combined <- ggarrange(G2, G1, align = "h")
-png("Plots/Figx_Fluoxetine_meta_analysis.png", width = 12, height = 6, units = "in", res = 350)
-G_combined
+png("Plots/Fig4_Fluoxetine_meta_analysis.png", width = 8, height = 6, units = "in", res = 350)
+G1
 dev.off()
+# G_combined <- ggarrange(G2, G1, align = "h")
+# png("Plots/Figx_Fluoxetine_meta_analysis.png", width = 12, height = 6, units = "in", res = 350)
+# G_combined
+# dev.off()
 ```
 
 ```{r}
